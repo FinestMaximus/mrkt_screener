@@ -1,0 +1,11 @@
+matplotlib
+pandas
+mplfinance
+marketprofile
+plotly
+yfinance-cache
+yfinance --upgrade --no-cache-dir
+nbformat --upgrade
+tabulate
+textblob
+Newspaper3k
