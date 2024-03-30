@@ -1,0 +1,11 @@
+matplotlib
+pandas
+mplfinance
+marketprofile
+plotly
+yfinance-cache 
+yfinance
+nbformat
+tabulate
+textblob
+Newspaper3k
