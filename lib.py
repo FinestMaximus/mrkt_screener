@@ -1135,45 +1135,55 @@ def plot_candle_charts_per_symbol(
 
         logging.info("Finished plotting candle charts for all symbols")
 
-@st.cache_data(show_spinner="Fetching news data from API...")
-def get_news_data(ticker_symbol):
-    """Fetch and analyze news data for a given ticker symbol"""
-    news_data = []
-    total_polarity = 0
-
+@st.cache_data(show_spinner="Fetching news data from API...", persist=True)
+def fetch_news(ticker_symbol):
+    """Fetch news data for a given ticker symbol."""
     try:
         dnews = yf.Ticker(ticker_symbol).news
+        if not dnews:
+            logging.warning(f"No news found for ticker '{ticker_symbol}'.")
+            return []
+        else:
+            return dnews
     except Exception as e:
         logging.error(f"Failed to fetch ticker data or news for '{ticker_symbol}': {e}")
-        return news_data, total_polarity
+        return []
 
-    if not dnews:
-        logging.warning(f"No news found for ticker '{ticker_symbol}'.")
-        return news_data, total_polarity
-    
+def analyze_news_article(article_info):
+    """Analyze a single news article and return its processed information."""
+    try:
+        article = Article(article_info["link"])
+        article.download()
+        article.parse()
+    except Exception as e:
+        logging.error(f"Error processing article at {article_info['link']}: {e}")
+        return None
+
+    blob = TextBlob(article.text)
+    polarity = blob.sentiment.polarity
+
+    days_ago = (datetime.now() - datetime.fromtimestamp(article_info["providerPublishTime"])).days
+
+    return {
+        "Title": article_info["title"],
+        "Link": article_info["link"],
+        "Publisher": article_info["publisher"],
+        "Sentiment": polarity,
+        "Days Ago": days_ago,
+    }
+
+def get_news_data(ticker_symbol):
+    """Fetch and analyze news data and calculate total polarity for a given ticker symbol."""
+    dnews = fetch_news(ticker_symbol)
+    total_polarity = 0
+    news_data = []
+
     for article_info in dnews:
         if all(k in article_info for k in ["link", "providerPublishTime", "title", "publisher"]):
-            try:
-                article = Article(article_info["link"])
-                article.download()
-                article.parse()
-            except Exception as e:
-                logging.error(f"Error processing article at {article_info['link']}: {e}")
-                continue
-
-            blob = TextBlob(article.text)
-            polarity = blob.sentiment.polarity
-            total_polarity += polarity
-
-            days_ago = (datetime.now() - datetime.fromtimestamp(article_info["providerPublishTime"])).days
-
-            news_data.append({
-                "Title": article_info["title"],
-                "Link": article_info["link"],
-                "Publisher": article_info["publisher"],
-                "Sentiment": polarity,
-                "Days Ago": days_ago,
-            })
+            article_data = analyze_news_article(article_info)
+            if article_data:
+                total_polarity += article_data["Sentiment"]
+                news_data.append(article_data)
         else:
             logging.error(f"Missing required keys in article info: {article_info}")
 
