@@ -861,7 +861,8 @@ def plot_combined_interactive(combined_metrics):
 
     st.plotly_chart(fig)
 
-def get_eps_pe_pb_ps_peg(ticker_symbol, combined_metrics):
+def get_eps_pe_pb_ps_peg_gm(ticker_symbol, combined_metrics):
+
     try:
         if ticker_symbol in combined_metrics["company_labels"]:
             index = combined_metrics["company_labels"].index(ticker_symbol)
@@ -870,14 +871,15 @@ def get_eps_pe_pb_ps_peg(ticker_symbol, combined_metrics):
             ps = combined_metrics["priceToSalesTrailing12Months"][index]
             pb = combined_metrics["priceToBook"][index]
             peg = combined_metrics["peg_values"][index]
+            gm = combined_metrics["gross_margins"][index]
 
-            return eps, pe, ps, pb, peg
+            return eps, pe, ps, pb, peg, gm
         else:
             print(f"Ticker '{ticker_symbol}' not found in the labels list.")
-            return None, None, None, None, None
+            return None, None, None, None, None, None
     except Exception as e:
         print(f"An error occurred: {e}")
-        return None, None, None, None, None
+        return None, None, None, None, None, None
 
 def format_business_summary(summary):
     summary_no_colons = summary.replace(":", "\:")
@@ -930,7 +932,7 @@ def plot_with_volume_profile(
     ticker = yf.Ticker(ticker_symbol)
     data = fetch_historical_data(ticker_symbol, start_date, end_date)
 
-    eps, pe, ps, pb, peg = get_eps_pe_pb_ps_peg(ticker_symbol, combined_metrics)
+    eps, pe, ps, pb, peg, gm = get_eps_pe_pb_ps_peg_gm(ticker_symbol, combined_metrics)
 
     if not data.empty:
         va_high, va_low, poc_price, _ = calculate_market_profile(data)
@@ -954,7 +956,7 @@ def plot_with_volume_profile(
 
         final_shortlist_labels.append(ticker_symbol)
 
-        col1, col2, col3, col4, col5, col6 = st.columns(6)
+        col1, col2, col3, col4, col5, col6, col7 = st.columns(7)
 
         with col1:
             if peg:
@@ -1003,6 +1005,12 @@ def plot_with_volume_profile(
                 )
             else:
                 st.metric(label="Market Cap", value="-")
+
+        with col7:
+            if pb:
+                st.metric(label="Gross Margin", value=f"{round(gm*100,1)}%")
+            else:
+                st.metric(label="Gross Margin", value="-")
 
         summary_text = ticker.info["longBusinessSummary"]
 
@@ -1172,6 +1180,7 @@ def analyze_news_article(article_info):
         "Days Ago": days_ago,
     }
 
+@st.cache_data(show_spinner="Fetching news data from API...", persist=True)
 def get_news_data(ticker_symbol):
     """Fetch and analyze news data and calculate total polarity for a given ticker symbol."""
     dnews = fetch_news(ticker_symbol)
