@@ -3,7 +3,6 @@ pandas
 mplfinance
 marketprofile
 plotly
-yfinance-cache 
 yfinance
 nbformat
 tabulate

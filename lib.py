@@ -861,7 +861,6 @@ def plot_combined_interactive(combined_metrics):
 
     st.plotly_chart(fig)
 
-
 def get_eps_pe_pb_ps_peg(ticker_symbol, combined_metrics):
     try:
         if ticker_symbol in combined_metrics["company_labels"]:
@@ -880,7 +879,6 @@ def get_eps_pe_pb_ps_peg(ticker_symbol, combined_metrics):
         print(f"An error occurred: {e}")
         return None, None, None, None, None
 
-
 def format_business_summary(summary):
     summary_no_colons = summary.replace(":", "\:")
     wrapped_summary = textwrap.fill(summary_no_colons)
@@ -895,7 +893,6 @@ def calculate_market_profile(data):
     profile_range = mp_slice.profile_range
 
     return va_high, va_low, poc_price, profile_range
-
 
 def fetch_ticker_news_with_retry(ticker_symbol, max_retries=1, delay=2):
     news_data = []
@@ -921,7 +918,6 @@ def fetch_ticker_news_with_retry(ticker_symbol, max_retries=1, delay=2):
         )
 
     return news_data, total_polarity
-
 
 def plot_with_volume_profile(
     ticker_symbol,
@@ -1054,6 +1050,7 @@ def plot_with_volume_profile(
             #     show_calendar_data(calendar_data)
             # except Exception as e:
             #     logging.error(f"Failed to fetch or display calendar data for {ticker_symbol}: {e}")
+            
         with col2:
             display_news_articles(news_data)
         with col3:
@@ -1144,7 +1141,6 @@ def get_news_data(ticker_symbol):
     news_data = []
     total_polarity = 0
 
-    # Attempt to retrieve news for the ticker using yfinance
     try:
         dnews = yf.Ticker(ticker_symbol).news
     except Exception as e:
@@ -1154,8 +1150,7 @@ def get_news_data(ticker_symbol):
     if not dnews:
         logging.warning(f"No news found for ticker '{ticker_symbol}'.")
         return news_data, total_polarity
-
-    # Process each news article
+    
     for article_info in dnews:
         if all(k in article_info for k in ["link", "providerPublishTime", "title", "publisher"]):
             try:
@@ -1166,14 +1161,12 @@ def get_news_data(ticker_symbol):
                 logging.error(f"Error processing article at {article_info['link']}: {e}")
                 continue
 
-            # TextBlob analysis for sentiment
             blob = TextBlob(article.text)
             polarity = blob.sentiment.polarity
             total_polarity += polarity
 
             days_ago = (datetime.now() - datetime.fromtimestamp(article_info["providerPublishTime"])).days
 
-            # Append processed article data
             news_data.append({
                 "Title": article_info["title"],
                 "Link": article_info["link"],
@@ -1192,7 +1185,6 @@ def display_news_articles(news_data):
         st.write("No news data available.")
         return
 
-    # Display each news item formatted on the page
     for news_item in news_data:
         title = news_item["Title"]
         if len(title) > 70:
