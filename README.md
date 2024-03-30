@@ -38,4 +38,4 @@ This app is designed for stock analysis and investment decision-making. It follo
 
 ## Example Ouput
 
-![image](https://github.com/FinestMaximus/mrkt_screener/assets/21218173/a36233b1-45b7-4c3d-8919-b0e23e0c0410)
+![image](https://github.com/FinestMaximus/mrkt_screener/assets/21218173/00285502-5c8e-48f3-9b84-b77089c935d4)
