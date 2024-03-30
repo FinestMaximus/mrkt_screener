@@ -994,8 +994,7 @@ def plot_with_volume_profile(
                 if market_cap >= 1e9:
                     market_cap_display = f"{market_cap / 1e9:.2f} B"
                 elif market_cap >= 1e6:
-                    market_cap_display = (
-                        f"{ticker.info['currency']}{market_cap / 1e6:.2f} M"
+                    market_cap_display = (f"{market_cap / 1e6:.2f} M"
                     )
                 else:
                     market_cap_display = f"{market_cap:.2f}"
