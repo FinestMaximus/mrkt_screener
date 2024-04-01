@@ -35,8 +35,10 @@ def populate_metrics(ticker, metrics):
             metrics["pe_values"].append(stock_info.get("trailingPE", 0))
             metrics["peg_values"].append(stock_info.get("pegRatio", 0))
             metrics["gross_margins"].append(stock_info.get("grossMargins", 0))
+            metrics["sector"].append(stock_info.get("sector", ""))
             metrics["short_name"].append(stock_info.get("shortName", ""))
             metrics["boardRisk"].append(stock_info.get("boardRisk", ""))
+            metrics["industry"].append(stock_info.get("industry", ""))
             metrics["compensationRisk"].append(stock_info.get("compensationRisk", ""))
             metrics["shareHolderRightsRisk"].append(
                 stock_info.get("shareHolderRightsRisk", "")
@@ -182,6 +184,8 @@ def fetch_metrics_data(companies):
             "short_name",
             "eps_values",
             "pe_values",
+            "sector",
+            "industry",
             "peg_values",
             "gross_margins",
             "company_labels",
@@ -446,10 +450,18 @@ def build_combined_metrics(filtered_company_symbols, metrics, metrics_filtered):
             else:
                 value = None
 
-            if isinstance(value, list) and key == 'freeCashflow':
-                combined_metrics[key].extend([v if isinstance(v, (int, float)) else None for v in value]) if isinstance(combined_metrics[key], list) else combined_metrics[key].append([v if isinstance(v, (int, float)) else None for v in value])
+            # Append or extend based on the type of value
+            if isinstance(value, list) and not isinstance(value, str) and key == 'freeCashflow':
+                # Assuming we want to extend to flatten the list of lists where key is 'freeCashflow'
+                combined_metrics[key].extend(value) if isinstance(combined_metrics[key], list) else combined_metrics[key].append([value])
             else:
                 combined_metrics[key].append(value)
+                
+    expected_length = len(filtered_company_symbols)
+    for key, values_list in combined_metrics.items():
+        if len(values_list) != expected_length:
+            raise ValueError(f"Length mismatch in combined metrics for key: {key}")
+
     return combined_metrics
 
 
@@ -1248,6 +1260,8 @@ def filter_companies(
                 "short_name": metrics["short_name"],
                 "short_name": metrics["short_name"],
                 "boardRisk": metrics["boardRisk"],
+                "industry": metrics["industry"],
+                "sector": metrics["sector"],
                 "compensationRisk": metrics["compensationRisk"],
                 "shareHolderRightsRisk": metrics["shareHolderRightsRisk"],
                 "overallRisk": metrics["overallRisk"],

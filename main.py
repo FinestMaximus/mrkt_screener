@@ -134,6 +134,8 @@ def main():
         gross_margin_threshold,
     )
 
+    print(filtered_companies_df)
+    
     if "company" in filtered_companies_df.columns:
         filtered_company_symbols = filtered_companies_df["company"].tolist()
     else:
@@ -149,11 +151,11 @@ def main():
     filtered_industries = fetch_industries(filtered_company_symbols)
     final_shortlist_labels = []
 
-    st.header("Analysis Results - Short List")
+    st.markdown("# Analysis Results - Short List")
     
     df = pd.DataFrame(st.session_state.combined_metrics)
     
-    columns_to_display = ['company_labels', 'shortName', 'overallRisk', 'freeCashflow', 'opCashflow', 'repurchaseCapStock']
+    columns_to_display = ['company_labels', 'shortName', 'sector', 'industry', 'overallRisk', 'freeCashflow', 'opCashflow', 'repurchaseCapStock']
     filtered_df: pd.DataFrame = df[columns_to_display].copy()
     filtered_df['opCashflow'] = filtered_df['opCashflow'].apply(lambda x: replace_with_zero(x))
     filtered_df['repurchaseCapStock'] = filtered_df['repurchaseCapStock'].apply(lambda x: replace_with_zero(x))
@@ -170,6 +172,8 @@ def main():
         column_config={
             "company_labels": st.column_config.TextColumn("Company Labels"),
             "shortName": st.column_config.TextColumn("Short Name"),
+            "sector": st.column_config.TextColumn("Sector"),
+            "industry": st.column_config.TextColumn("Industry"),
             "overallRisk": st.column_config.TextColumn("Overall Risk"),
             "freeCashflow": st.column_config.LineChartColumn(
                 "Free Cashflow (4y)", y_min=-200, y_max=200
