@@ -10,3 +10,5 @@ textblob
 Newspaper3k
 bs4
 requests
+regex
+lxml
