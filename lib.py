@@ -26,7 +26,6 @@ def get_date_range(days_back):
     start_date = end_date - timedelta(days=days_back)
     return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
 
-
 def populate_metrics(ticker, metrics):
     if ticker and hasattr(ticker, "info"):
         try:
@@ -168,14 +167,12 @@ def populate_metrics(ticker, metrics):
     else:
         st.write(f"Skipped a company ticker due to missing info or an invalid object.")
 
-
 def worker(company, metrics):
     try:
         ticker = yf.Ticker(company)
         populate_metrics(ticker, metrics)
     except Exception as e:
         print(f"Failed to fetch data for {company}. Error: {e}")
-
 
 @st.cache_data(show_spinner="Fetching data from API...", persist=True)
 def fetch_metrics_data(companies):
@@ -284,7 +281,6 @@ def fetch_metrics_data(companies):
         concurrent.futures.wait(futures)
     return metrics
 
-
 def classify_by_industry(tickers):
     industries = {}
     for ticker in tickers.tickers.values():
@@ -293,12 +289,10 @@ def classify_by_industry(tickers):
             industries.setdefault(sector, []).append(ticker.ticker)
     return industries
 
-
 def fetch_industries(companies):
     tickers = yf.Tickers(" ".join(companies))
     industries = classify_by_industry(tickers)
     return industries
-
 
 @st.cache_data(show_spinner="Fetching recommendations from API...", persist=True)
 def fetch_recommendations_summary(ticker_symbol):
@@ -321,7 +315,6 @@ def fetch_recommendations_summary(ticker_symbol):
             return {"message": "No recommendation data available."}
     except Exception as e:
         return {"error": f"Error: {str(e)}"}
-
 
 def populate_additional_metrics(ticker_symbol, metrics):
     ticker = yf.Ticker(ticker_symbol)
@@ -377,14 +370,12 @@ def get_cash_flows(ticker_symbol, fields_to_add, metrics):
                 print(f"{ticker.ticker} Failed to process {key}: {e}")
                 metrics[key].append(None)
 
-
 def get_ticker_object(symbol):
     if not isinstance(symbol, str):
         raise ValueError("Symbol must be a string.")
 
     ticker = yf.Ticker(symbol)
     return ticker
-
 
 @st.cache_data(show_spinner="Fetching additional data from API...", persist=True)
 def fetch_additional_metrics_data(companies):
@@ -404,7 +395,6 @@ def fetch_additional_metrics_data(companies):
             print(f"Warning: Ticker {company} not found. Skipping.")
 
     return metrics
-
 
 def build_combined_metrics(filtered_company_symbols, metrics, metrics_filtered):
     if not isinstance(filtered_company_symbols, list):
@@ -466,7 +456,6 @@ def build_combined_metrics(filtered_company_symbols, metrics, metrics_filtered):
 
     return combined_metrics
 
-
 @st.cache_data(show_spinner="Fetching historical data from API...", persist=True)
 def fetch_historical_data(
     ticker_symbol, start_date, end_date, period=None, interval="3mo"
@@ -481,7 +470,6 @@ def fetch_historical_data(
     except Exception as e:
         print(f"Error fetching data for {ticker}: {e}")
         return pd.DataFrame()
-
 
 def plot_sector_distribution_interactive(industries, title):
     sector_counts = {sector: len(tickers) for sector, tickers in industries.items()}
@@ -499,7 +487,6 @@ def plot_sector_distribution_interactive(industries, title):
     )
 
     return fig
-
 
 def plot_combined_interactive(combined_metrics):
     if not combined_metrics or not isinstance(combined_metrics, dict):
@@ -1077,7 +1064,6 @@ def plot_with_volume_profile(
     else:
         print(f"No data found for {ticker_symbol} in the given date range.")
 
-
 def plot_candle_charts_per_symbol(
     industries, start_date, end_date, combined_metrics, final_shortlist_labels, option
 ):
@@ -1119,7 +1105,7 @@ def plot_candle_charts_per_symbol(
 
         logging.info("Finished plotting candle charts for all symbols")
 
-# @st.cache_data(show_spinner="Fetching news data from API...", persist=True)
+@st.cache_data(show_spinner="Fetching news data from API...", persist=True)
 def fetch_news(ticker_symbol):
     """Fetch news data for a given ticker symbol."""
     try:
@@ -1188,7 +1174,6 @@ def display_news_articles(news_data):
         days_ago = int(news_item["Days Ago"])
         st.markdown(f"{rounded_sentiment} - [{re.sub(':', '', title)}]({news_item['Link']}) - ({days_ago} days ago)")
 
-
 def show_calendar_data(data):
     if data:
 
@@ -1212,7 +1197,6 @@ def show_calendar_data(data):
 
     else:
         st.write("No calendar data available.")
-
 
 def filter_companies(
     metrics,

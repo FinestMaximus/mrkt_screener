@@ -102,12 +102,9 @@ def display_metrics(metrics_dict):
             st.write(f"Value: {value}")
 
 def replace_with_zero(lst):
-    # Check if the input is None and return the specified default list in that case.
     if lst is None:
         return [0, 0, 0, 0]
 
-    # If lst is given, process it to replace NaN or 'nan' with 0.0
-    # Ensure that checking for 'nan' is case-insensitive for better robustness
     return [0.0 if (pd.isna(x) or str(x).lower() == 'nan') else x for x in lst]
 
 def main():
