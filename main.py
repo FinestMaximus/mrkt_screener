@@ -45,7 +45,7 @@ with st.sidebar:
     percentage, sentiment, color_code = fetch_market_sentiment(url)
 
     if percentage and sentiment and color_code:
-        info_text = "% Stocks in the market are in an uptrend and are above their 6 month exponential moving average (EMA)."
+        info_text = "% Stocks in the market that are in an uptrend trading above their 6 month exponential moving average (EMA)."
         col1, col2 = st.columns(2)
 
         with col1:
