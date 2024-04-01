@@ -37,6 +37,7 @@ def populate_metrics(ticker, metrics):
             metrics["gross_margins"].append(stock_info.get("grossMargins", 0))
             metrics["sector"].append(stock_info.get("sector", ""))
             metrics["short_name"].append(stock_info.get("shortName", ""))
+            metrics["fullTimeEmployees"].append(stock_info.get("fullTimeEmployees", ""))
             metrics["boardRisk"].append(stock_info.get("boardRisk", ""))
             metrics["industry"].append(stock_info.get("industry", ""))
             metrics["compensationRisk"].append(stock_info.get("compensationRisk", ""))
@@ -187,6 +188,7 @@ def fetch_metrics_data(companies):
             "sector",
             "industry",
             "peg_values",
+            "fullTimeEmployees",
             "gross_margins",
             "company_labels",
             "boardRisk",
@@ -902,7 +904,7 @@ def plot_with_volume_profile(
     if not data.empty:
         va_high, va_low, poc_price, _ = calculate_market_profile(data)
         price = ticker.info["currentPrice"]
-        print(option[0])
+
         if option[0] == "va_high":
             if price > va_high:
                 logging.info(f"{ticker_symbol} - current price is above value area: {price} {va_high} {poc_price}")
@@ -919,7 +921,7 @@ def plot_with_volume_profile(
 
         header_with_link = f"[🔗]({website}){shortName} - {ticker_symbol}"
 
-        st.markdown(f"# {header_with_link}", unsafe_allow_html=True)
+        st.markdown(f"### {header_with_link}", unsafe_allow_html=True)
 
         final_shortlist_labels.append(ticker_symbol)
 
@@ -1258,7 +1260,7 @@ def filter_companies(
                 "peg": metrics["peg_values"],
                 "gross_margin": metrics["gross_margins"],
                 "short_name": metrics["short_name"],
-                "short_name": metrics["short_name"],
+                "fullTimeEmployees": metrics["fullTimeEmployees"],
                 "boardRisk": metrics["boardRisk"],
                 "industry": metrics["industry"],
                 "sector": metrics["sector"],
@@ -1287,6 +1289,7 @@ def filter_companies(
                 "trailingAnnualDividendRate": metrics["trailingAnnualDividendRate"],
                 "trailingAnnualDividendYield": metrics["trailingAnnualDividendYield"],
                 "currency": metrics["currency"],
+                "fullTimeEmployees": metrics["fullTimeEmployees"],
                 "enterpriseValue": metrics["enterpriseValue"],
                 "profitMargins": metrics["profitMargins"],
                 "floatShares": metrics["floatShares"],

@@ -153,9 +153,19 @@ def main():
 
     st.markdown("# Analysis Results - Short List")
     
+    col1, col2, col3, col4, col5 = st.columns(5)
+
+    with col1:
+        st.metric(label="Total Finds", value=f"{len(filtered_companies_df)} Companies")
+
+    with col2:
+        st.metric(
+            label="Volume Profile Range", value=f"{round(days_history/365)} Years"
+        )
+
     df = pd.DataFrame(st.session_state.combined_metrics)
     
-    columns_to_display = ['company_labels', 'shortName', 'sector', 'industry', 'overallRisk', 'freeCashflow', 'opCashflow', 'repurchaseCapStock']
+    columns_to_display = ['company_labels', 'shortName', 'sector', 'industry', 'fullTimeEmployees','overallRisk', 'freeCashflow', 'opCashflow', 'repurchaseCapStock']
     filtered_df: pd.DataFrame = df[columns_to_display].copy()
     filtered_df['opCashflow'] = filtered_df['opCashflow'].apply(lambda x: replace_with_zero(x))
     filtered_df['repurchaseCapStock'] = filtered_df['repurchaseCapStock'].apply(lambda x: replace_with_zero(x))
@@ -174,6 +184,7 @@ def main():
             "shortName": st.column_config.TextColumn("Short Name"),
             "sector": st.column_config.TextColumn("Sector"),
             "industry": st.column_config.TextColumn("Industry"),
+            "fullTimeEmployees": st.column_config.TextColumn("fullTimeEmployees"),
             "overallRisk": st.column_config.TextColumn("Overall Risk"),
             "freeCashflow": st.column_config.LineChartColumn(
                 "Free Cashflow (4y)", y_min=-200, y_max=200
@@ -187,6 +198,8 @@ def main():
         },
         hide_index=True,
     )
+
+    st.markdown("# Detailed Analysis")
 
     plot_candle_charts_per_symbol(
         filtered_industries,
