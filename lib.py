@@ -338,10 +338,7 @@ def populate_additional_metrics(ticker_symbol, metrics):
     }
 
     get_cash_flows(ticker_symbol, fields_to_add, metrics)
-
-    return metrics
-
-
+    
 @st.cache_data(show_spinner="Fetching cashflow from API...", persist=True)
 def get_cash_flows(ticker_symbol, fields_to_add, metrics):
     ticker = yf.Ticker(ticker_symbol)
@@ -373,49 +370,6 @@ def get_cash_flows(ticker_symbol, fields_to_add, metrics):
             except Exception as e:
                 print(f"{ticker.ticker} Failed to process {key}: {e}")
                 metrics[key].append(None)
-
-
-def augment_metrics_with_live_data(companies, original_metrics):
-    if not isinstance(companies, list) or not all(
-        isinstance(item, str) for item in companies
-    ):
-        raise ValueError("companies must be a list of strings")
-
-    if not isinstance(original_metrics, dict):
-        raise ValueError("original_metrics must be a dictionary")
-
-    augmented_data = {metric: [] for metric in original_metrics}
-
-    augmented_data.update(
-        {
-            "recommendations_summary": [],
-            "news": [],
-            "priceToSalesTrailing12Months": [],
-            "priceToBook": [],
-            "market_caps": [],
-        }
-    )
-
-    for ticker_symbol in companies:
-        try:
-
-            company_metrics = {metric: [] for metric in augmented_data}
-
-            populate_additional_metrics(ticker_symbol, company_metrics)
-
-            for key, values in company_metrics.items():
-                if key in augmented_data:
-                    augmented_data[key].extend(
-                        values if isinstance(values, list) else [values]
-                    )
-                else:
-                    print(
-                        f"Unexpected metric {key} found in company_metrics, skipping..."
-                    )
-        except Exception as e:
-            print(f"Error processing company {ticker_symbol}: {e}")
-
-    return augmented_data
 
 
 def get_ticker_object(symbol):
@@ -482,30 +436,20 @@ def build_combined_metrics(filtered_company_symbols, metrics, metrics_filtered):
                 continue
 
             if key in metrics and metrics_index >= 0:
-                value = (
-                    metrics[key][metrics_index]
-                    if isinstance(metrics[key], list)
-                    and len(metrics[key]) > metrics_index
-                    else None
-                )
-                combined_metrics[key].append(value)
+                if isinstance(metrics[key][metrics_index], list):
+                    value = metrics[key][metrics_index]
+                else:
+                    value = metrics[key][metrics_index] if len(metrics[key]) > metrics_index else None
             elif key in metrics_filtered:
                 filtered_index = filtered_company_symbols.index(symbol)
-                value = (
-                    metrics_filtered[key][filtered_index]
-                    if isinstance(metrics_filtered[key], list)
-                    and len(metrics_filtered[key]) > filtered_index
-                    else None
-                )
-                combined_metrics[key].append(value)
+                value = metrics_filtered[key][filtered_index] if len(metrics_filtered[key]) > filtered_index else None
             else:
-                combined_metrics[key].append(None)
+                value = None
 
-    expected_length = len(filtered_company_symbols)
-    for key, values_list in combined_metrics.items():
-        if len(values_list) != expected_length:
-            raise ValueError(f"Length mismatch in combined metrics for key: {key}")
-
+            if isinstance(value, list) and key == 'freeCashflow':
+                combined_metrics[key].extend([v if isinstance(v, (int, float)) else None for v in value]) if isinstance(combined_metrics[key], list) else combined_metrics[key].append([v if isinstance(v, (int, float)) else None for v in value])
+            else:
+                combined_metrics[key].append(value)
     return combined_metrics
 
 
@@ -861,7 +805,7 @@ def plot_combined_interactive(combined_metrics):
 
     st.plotly_chart(fig)
 
-def get_eps_pe_pb_ps_peg_gm(ticker_symbol, combined_metrics):
+def get_dash_metrics(ticker_symbol, combined_metrics):
 
     try:
         if ticker_symbol in combined_metrics["company_labels"]:
@@ -872,8 +816,17 @@ def get_eps_pe_pb_ps_peg_gm(ticker_symbol, combined_metrics):
             pb = combined_metrics["priceToBook"][index]
             peg = combined_metrics["peg_values"][index]
             gm = combined_metrics["gross_margins"][index]
+            wh52 = combined_metrics["fiftyTwoWeekHigh"][index]
+            wl52 = combined_metrics["fiftyTwoWeekLow"][index]
+            currentPrice = combined_metrics["currentPrice"][index]
+            targetMedianPrice= combined_metrics["targetMedianPrice"][index]
+            targetLowPrice= combined_metrics["targetLowPrice"][index]
+            targetMeanPrice= combined_metrics["targetMeanPrice"][index]
+            targetHighPrice= combined_metrics["targetHighPrice"][index]
+            recommendationMean= combined_metrics["recommendationMean"][index]
 
-            return eps, pe, ps, pb, peg, gm
+            return eps, pe, ps, pb, peg, gm, wh52, wl52, currentPrice, targetMedianPrice, targetLowPrice, targetMeanPrice, targetHighPrice, recommendationMean
+        
         else:
             print(f"Ticker '{ticker_symbol}' not found in the labels list.")
             return None, None, None, None, None, None
@@ -932,20 +885,22 @@ def plot_with_volume_profile(
     ticker = yf.Ticker(ticker_symbol)
     data = fetch_historical_data(ticker_symbol, start_date, end_date)
 
-    eps, pe, ps, pb, peg, gm = get_eps_pe_pb_ps_peg_gm(ticker_symbol, combined_metrics)
+    eps, pe, ps, pb, peg, gm, wh52, wl52, currentPrice, targetMedianPrice, targetLowPrice, targetMeanPrice, targetHighPrice, recommendationMean = get_dash_metrics(ticker_symbol, combined_metrics)
 
     if not data.empty:
         va_high, va_low, poc_price, _ = calculate_market_profile(data)
         price = ticker.info["currentPrice"]
-        if option == "va_high":
+        print(option[0])
+        if option[0] == "va_high":
             if price > va_high:
                 logging.info(f"{ticker_symbol} - current price is above value area: {price} {va_high} {poc_price}")
-
                 return 0
-        else:
+        elif option[0] == "poc_price":
             if price > poc_price:
                 logging.info(f"{ticker_symbol} - price is above price of control: {price} {va_high} {poc_price}")
                 return 0
+        else :
+            pass
 
         website = ticker.info["website"]
         shortName = ticker.info["shortName"]
@@ -1010,6 +965,14 @@ def plot_with_volume_profile(
                 st.metric(label="Gross Margin", value=f"{round(gm*100,1)}%")
             else:
                 st.metric(label="Gross Margin", value="-")
+
+        # col1, col2 = st.columns(2)
+
+        # with col1:
+            # if peg:
+            #     st.metric(label="PEG", value=f"{round(peg,2)}")
+            # else:
+                # st.metric(label="PEG", value="-")
 
         summary_text = ticker.info["longBusinessSummary"]
 
