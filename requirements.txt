@@ -8,3 +8,5 @@ nbformat
 tabulate
 textblob
 Newspaper3k
+bs4
+requests
