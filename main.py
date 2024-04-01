@@ -87,7 +87,6 @@ def init_session_state():
     if "combined_metrics" not in st.session_state:
         st.session_state.combined_metrics = {}
 
-
 def display_metrics(metrics_dict):
     if not metrics_dict:
         st.write("No metrics available.")
@@ -103,11 +102,16 @@ def display_metrics(metrics_dict):
             st.write(f"Value: {value}")
 
 def replace_with_zero(lst):
-    return [0.0 if (pd.isna(x) or x == 'nan') else x for x in lst]
+    # Check if the input is None and return the specified default list in that case.
+    if lst is None:
+        return [0, 0, 0, 0]
+
+    # If lst is given, process it to replace NaN or 'nan' with 0.0
+    # Ensure that checking for 'nan' is case-insensitive for better robustness
+    return [0.0 if (pd.isna(x) or str(x).lower() == 'nan') else x for x in lst]
 
 def main():
     init_session_state()
-
 
     if not st.session_state.data_loaded:
         file_path = "tickers.csv"
@@ -117,15 +121,12 @@ def main():
 
         st.session_state.metrics = fetch_metrics_data(st.session_state.companies)
 
-    # Prevent further execution if no companies found
     if not st.session_state.companies:
         st.info("No companies found in the uploaded file.")
         return
 
-    # Assuming get_date_range() doesn't rely on Streamlit commands to function
     start_date_str, end_date_str = get_date_range(days_history)
 
-    # Assuming filtering logic doesn't depend on the Streamlit visual commands
     filtered_companies_df = filter_companies(
         st.session_state.metrics,
         eps_threshold,
@@ -133,8 +134,6 @@ def main():
         peg_threshold_high,
         gross_margin_threshold,
     )
-
-    print(filtered_companies_df)
     
     if "company" in filtered_companies_df.columns:
         filtered_company_symbols = filtered_companies_df["company"].tolist()
@@ -165,15 +164,15 @@ def main():
 
     df = pd.DataFrame(st.session_state.combined_metrics)
     
-    columns_to_display = ['company_labels', 'shortName', 'sector', 'industry', 'fullTimeEmployees','overallRisk', 'freeCashflow', 'opCashflow', 'repurchaseCapStock']
+    columns_to_display = ['company_labels', 'shortName', 'sector', 'industry', 'fullTimeEmployees','overallRisk', 'opCashflow', 'repurchaseCapStock']
     filtered_df: pd.DataFrame = df[columns_to_display].copy()
     filtered_df['opCashflow'] = filtered_df['opCashflow'].apply(lambda x: replace_with_zero(x))
     filtered_df['repurchaseCapStock'] = filtered_df['repurchaseCapStock'].apply(lambda x: replace_with_zero(x))
 
-    assert len(metrics_filtered['freeCashflow']) == len(filtered_df), "Mismatch in number of records"
+    # assert len(metrics_filtered['freeCashflow']) == len(filtered_df), "Mismatch in number of records"
 
     # THIS IS A QUICK FIX FOR MALFOMED freeCashflow inside  build_combined_metrics() - TBF later
-    filtered_df['freeCashflow'] = metrics_filtered['freeCashflow']
+    # filtered_df['freeCashflow'] = metrics_filtered['freeCashflow']
     filtered_df['repurchaseCapStock'] = filtered_df['repurchaseCapStock'].apply(lambda x: [-y for y in x] if isinstance(x, list) else -x)
 
     st.dataframe(
@@ -186,9 +185,9 @@ def main():
             "industry": st.column_config.TextColumn("Industry"),
             "fullTimeEmployees": st.column_config.TextColumn("fullTimeEmployees"),
             "overallRisk": st.column_config.TextColumn("Overall Risk"),
-            "freeCashflow": st.column_config.LineChartColumn(
-                "Free Cashflow (4y)", y_min=-200, y_max=200
-            ),
+            # "freeCashflow": st.column_config.LineChartColumn(
+            #     "Free Cashflow (4y)", y_min=-200, y_max=200
+            # ),
             "opCashflow": st.column_config.LineChartColumn(
                 "Operating Cashflow (4y)", y_min=-100, y_max=100
             ),

@@ -1119,7 +1119,7 @@ def plot_candle_charts_per_symbol(
 
         logging.info("Finished plotting candle charts for all symbols")
 
-@st.cache_data(show_spinner="Fetching news data from API...", persist=True)
+# @st.cache_data(show_spinner="Fetching news data from API...", persist=True)
 def fetch_news(ticker_symbol):
     """Fetch news data for a given ticker symbol."""
     try:
