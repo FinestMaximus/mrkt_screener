@@ -850,31 +850,6 @@ def calculate_market_profile(data):
 
     return va_high, va_low, poc_price, profile_range
 
-def fetch_ticker_news_with_retry(ticker_symbol, max_retries=1, delay=2):
-    news_data = []
-    total_polarity = 0
-    attempts = 0
-
-    while attempts < max_retries:
-        try:
-            dnews = yf.Ticker(ticker_symbol).news
-            if dnews:
-                news_data = dnews
-                break
-        except Exception as e:
-            logging.error(
-                f"Attempt {attempts + 1}: Failed to fetch ticker data or news for '{ticker_symbol}': {e}"
-            )
-            time.sleep(delay)
-            attempts += 1
-
-    if not news_data:
-        logging.error(
-            f"All {max_retries} attempts failed for ticker symbol '{ticker_symbol}'."
-        )
-
-    return news_data, total_polarity
-
 def plot_with_volume_profile(
     ticker_symbol,
     start_date,
@@ -1107,16 +1082,15 @@ def plot_candle_charts_per_symbol(
 
 @st.cache_data(show_spinner="Fetching news data from API...", persist=True)
 def fetch_news(ticker_symbol):
-    """Fetch news data for a given ticker symbol."""
+    """Fetch news data for a given ticker symbol with error handling."""
     try:
         dnews = yf.Ticker(ticker_symbol).news
         if not dnews:
             logging.warning(f"No news found for ticker '{ticker_symbol}'.")
             return []
-        else:
-            return dnews
+        return dnews
     except Exception as e:
-        logging.error(f"Failed to fetch ticker data or news for '{ticker_symbol}': {e}")
+        logging.error(f"Failed to fetch news for ticker '{ticker_symbol}': {e}")
         return []
 
 def analyze_news_article(article_info):
@@ -1142,13 +1116,12 @@ def analyze_news_article(article_info):
         "Days Ago": days_ago,
     }
 
-@st.cache_data(show_spinner="Fetching news data from API...", persist=True)
 def get_news_data(ticker_symbol):
     """Fetch and analyze news data and calculate total polarity for a given ticker symbol."""
     dnews = fetch_news(ticker_symbol)
     total_polarity = 0
     news_data = []
-
+    print(dnews)
     for article_info in dnews:
         if all(k in article_info for k in ["link", "providerPublishTime", "title", "publisher"]):
             article_data = analyze_news_article(article_info)
