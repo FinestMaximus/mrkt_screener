@@ -40,43 +40,6 @@ def fetch_market_sentiment(url):
         logging.error("Failed to retrieve the webpage - Status code: %s", response.status_code)
         return None, None, None
 
-with st.sidebar:
-    url = 'https://pyinvesting.com/fear-and-greed/'
-    percentage, sentiment, color_code = fetch_market_sentiment(url)
-
-    if percentage and sentiment and color_code:
-        info_text = "% Stocks in the market that are in an uptrend trading above their 6 month exponential moving average (EMA)."
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.metric(label="Sentiment:", value=percentage, help=info_text)
-
-        with col2:
-            st.markdown(f"<h1 style='color: {color_code};'>{sentiment}</h1>", unsafe_allow_html=True)
-
-    days_history = st.number_input(
-        "Days History", min_value=365, max_value=36500, value=1825, step=365
-    )
-    eps_threshold = st.number_input("EPS Threshold", value=5.0)
-    gross_margin_threshold = st.number_input("Gross Margin Threshold", value=0.8)
-    peg_threshold_low = st.number_input("PEG Lower Threshold", value=0.0)
-    peg_threshold_high = st.number_input("PEG Upper Threshold", value=1.0)
-
-with st.sidebar:
-    st.sidebar.subheader("Price Type Selection")
-    st.sidebar.write("Select the type of price you want to analyze. Hover over each option for more details to help you decide.")
-
-    option = st.radio(
-        "Select the price threshold:",
-        options=[
-            ('va_high', 'Current Price inside VA'),
-            ('poc_price', 'Current Price below POC'), 
-            ('disabled', "Disable Price Area Filter")
-        ],
-        format_func=lambda x: x[1],  
-        help="Value Area High (va_high) refers to the highest price level within the Value Area where the majority of trading activity took place. \n\nPoint of Control Price (poc_price) is the price level for the time period with the highest traded volume."
-    )
-
 def init_session_state():
     if "companies" not in st.session_state:
         st.session_state.companies = []
@@ -212,5 +175,42 @@ def main():
         if label in st.session_state.combined_metrics["company_labels"]
     ]
     
+with st.sidebar:
+    url = 'https://pyinvesting.com/fear-and-greed/'
+    percentage, sentiment, color_code = fetch_market_sentiment(url)
+
+    if percentage and sentiment and color_code:
+        info_text = "% Stocks in the market that are in an uptrend trading above their 6 month exponential moving average (EMA)."
+        col1, col2 = st.columns(2)
+
+        with col1:
+            st.metric(label="Sentiment:", value=percentage, help=info_text)
+
+        with col2:
+            st.markdown(f"<h1 style='color: {color_code};'>{sentiment}</h1>", unsafe_allow_html=True)
+
+    days_history = st.number_input(
+        "Days History", min_value=365, max_value=36500, value=1825, step=365
+    )
+    eps_threshold = st.number_input("EPS Threshold", value=5.0)
+    gross_margin_threshold = st.number_input("Gross Margin Threshold", value=0.8)
+    peg_threshold_low = st.number_input("PEG Lower Threshold", value=0.0)
+    peg_threshold_high = st.number_input("PEG Upper Threshold", value=1.0)
+
+with st.sidebar:
+    st.sidebar.subheader("Price Type Selection")
+    st.sidebar.write("Select the type of price you want to analyze. Hover over each option for more details to help you decide.")
+
+    option = st.radio(
+        "Select the price threshold:",
+        options=[
+            ('va_high', 'Current Price inside VA'),
+            ('poc_price', 'Current Price below POC'), 
+            ('disabled', "Disable Price Area Filter")
+        ],
+        format_func=lambda x: x[1],  
+        help="Value Area High (va_high) refers to the highest price level within the Value Area where the majority of trading activity took place. \n\nPoint of Control Price (poc_price) is the price level for the time period with the highest traded volume."
+    )
+
 if __name__ == "__main__":
     main()

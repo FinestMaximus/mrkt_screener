@@ -1121,7 +1121,7 @@ def get_news_data(ticker_symbol):
     dnews = fetch_news(ticker_symbol)
     total_polarity = 0
     news_data = []
-    print(dnews)
+
     for article_info in dnews:
         if all(k in article_info for k in ["link", "providerPublishTime", "title", "publisher"]):
             article_data = analyze_news_article(article_info)
