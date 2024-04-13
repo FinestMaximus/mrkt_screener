@@ -22,10 +22,13 @@ def fetch_market_sentiment(url):
             if percentage_value >= 75:
                 sentiment = "Extreme Greed" 
                 color_code = 'red'
-            elif 50 <= percentage_value < 75:
+            elif 60 <= percentage_value < 75:
                 sentiment = "Greed 😨" 
                 color_code = 'orange'
-            elif 25 <= percentage_value < 50:
+            elif 40 <= percentage_value < 60:
+                sentiment = "Neutral 😐" 
+                color_code = 'white'
+            elif 25 <= percentage_value < 40:
                 sentiment = "Fear 😏" 
                 color_code = 'yellow'
             else:
