@@ -20,11 +20,12 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+
 def get_date_range(days_back):
-    """Helper function to compute start and end date strings."""
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days_back)
     return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
+
 
 def populate_metrics(ticker, metrics):
     if ticker and hasattr(ticker, "info"):
@@ -167,12 +168,14 @@ def populate_metrics(ticker, metrics):
     else:
         st.write(f"Skipped a company ticker due to missing info or an invalid object.")
 
+
 def worker(company, metrics):
     try:
         ticker = yf.Ticker(company)
         populate_metrics(ticker, metrics)
     except Exception as e:
         print(f"Failed to fetch data for {company}. Error: {e}")
+
 
 @st.cache_data(show_spinner="Fetching data from API...", persist=True)
 def fetch_metrics_data(companies):
@@ -281,6 +284,7 @@ def fetch_metrics_data(companies):
         concurrent.futures.wait(futures)
     return metrics
 
+
 def classify_by_industry(tickers):
     industries = {}
     for ticker in tickers.tickers.values():
@@ -289,10 +293,12 @@ def classify_by_industry(tickers):
             industries.setdefault(sector, []).append(ticker.ticker)
     return industries
 
+
 def fetch_industries(companies):
     tickers = yf.Tickers(" ".join(companies))
     industries = classify_by_industry(tickers)
     return industries
+
 
 @st.cache_data(show_spinner="Fetching recommendations from API...", persist=True)
 def fetch_recommendations_summary(ticker_symbol):
@@ -316,6 +322,7 @@ def fetch_recommendations_summary(ticker_symbol):
     except Exception as e:
         return {"error": f"Error: {str(e)}"}
 
+
 def populate_additional_metrics(ticker_symbol, metrics):
     ticker = yf.Ticker(ticker_symbol)
     if not hasattr(ticker, "info") or not hasattr(ticker, "cashflow"):
@@ -337,7 +344,8 @@ def populate_additional_metrics(ticker_symbol, metrics):
     }
 
     get_cash_flows(ticker_symbol, fields_to_add, metrics)
-    
+
+
 @st.cache_data(show_spinner="Fetching cashflow from API...", persist=True)
 def get_cash_flows(ticker_symbol, fields_to_add, metrics):
     ticker = yf.Ticker(ticker_symbol)
@@ -370,12 +378,14 @@ def get_cash_flows(ticker_symbol, fields_to_add, metrics):
                 print(f"{ticker.ticker} Failed to process {key}: {e}")
                 metrics[key].append(None)
 
+
 def get_ticker_object(symbol):
     if not isinstance(symbol, str):
         raise ValueError("Symbol must be a string.")
 
     ticker = yf.Ticker(symbol)
     return ticker
+
 
 @st.cache_data(show_spinner="Fetching additional data from API...", persist=True)
 def fetch_additional_metrics_data(companies):
@@ -395,6 +405,7 @@ def fetch_additional_metrics_data(companies):
             print(f"Warning: Ticker {company} not found. Skipping.")
 
     return metrics
+
 
 def build_combined_metrics(filtered_company_symbols, metrics, metrics_filtered):
     if not isinstance(filtered_company_symbols, list):
@@ -435,26 +446,43 @@ def build_combined_metrics(filtered_company_symbols, metrics, metrics_filtered):
                 if isinstance(metrics[key][metrics_index], list):
                     value = metrics[key][metrics_index]
                 else:
-                    value = metrics[key][metrics_index] if len(metrics[key]) > metrics_index else None
+                    value = (
+                        metrics[key][metrics_index]
+                        if len(metrics[key]) > metrics_index
+                        else None
+                    )
             elif key in metrics_filtered:
                 filtered_index = filtered_company_symbols.index(symbol)
-                value = metrics_filtered[key][filtered_index] if len(metrics_filtered[key]) > filtered_index else None
+                value = (
+                    metrics_filtered[key][filtered_index]
+                    if len(metrics_filtered[key]) > filtered_index
+                    else None
+                )
             else:
                 value = None
 
             # Append or extend based on the type of value
-            if isinstance(value, list) and not isinstance(value, str) and key == 'freeCashflow':
+            if (
+                isinstance(value, list)
+                and not isinstance(value, str)
+                and key == "freeCashflow"
+            ):
                 # Assuming we want to extend to flatten the list of lists where key is 'freeCashflow'
-                combined_metrics[key].extend(value) if isinstance(combined_metrics[key], list) else combined_metrics[key].append([value])
+                (
+                    combined_metrics[key].extend(value)
+                    if isinstance(combined_metrics[key], list)
+                    else combined_metrics[key].append([value])
+                )
             else:
                 combined_metrics[key].append(value)
-                
+
     expected_length = len(filtered_company_symbols)
     for key, values_list in combined_metrics.items():
         if len(values_list) != expected_length:
             raise ValueError(f"Length mismatch in combined metrics for key: {key}")
 
     return combined_metrics
+
 
 @st.cache_data(show_spinner="Fetching historical data from API...", persist=True)
 def fetch_historical_data(
@@ -470,6 +498,7 @@ def fetch_historical_data(
     except Exception as e:
         print(f"Error fetching data for {ticker}: {e}")
         return pd.DataFrame()
+
 
 def plot_sector_distribution_interactive(industries, title):
     sector_counts = {sector: len(tickers) for sector, tickers in industries.items()}
@@ -487,6 +516,7 @@ def plot_sector_distribution_interactive(industries, title):
     )
 
     return fig
+
 
 def plot_combined_interactive(combined_metrics):
     if not combined_metrics or not isinstance(combined_metrics, dict):
@@ -806,6 +836,7 @@ def plot_combined_interactive(combined_metrics):
 
     st.plotly_chart(fig)
 
+
 def get_dash_metrics(ticker_symbol, combined_metrics):
 
     try:
@@ -820,14 +851,29 @@ def get_dash_metrics(ticker_symbol, combined_metrics):
             wh52 = combined_metrics["fiftyTwoWeekHigh"][index]
             wl52 = combined_metrics["fiftyTwoWeekLow"][index]
             currentPrice = combined_metrics["currentPrice"][index]
-            targetMedianPrice= combined_metrics["targetMedianPrice"][index]
-            targetLowPrice= combined_metrics["targetLowPrice"][index]
-            targetMeanPrice= combined_metrics["targetMeanPrice"][index]
-            targetHighPrice= combined_metrics["targetHighPrice"][index]
-            recommendationMean= combined_metrics["recommendationMean"][index]
+            targetMedianPrice = combined_metrics["targetMedianPrice"][index]
+            targetLowPrice = combined_metrics["targetLowPrice"][index]
+            targetMeanPrice = combined_metrics["targetMeanPrice"][index]
+            targetHighPrice = combined_metrics["targetHighPrice"][index]
+            recommendationMean = combined_metrics["recommendationMean"][index]
 
-            return eps, pe, ps, pb, peg, gm, wh52, wl52, currentPrice, targetMedianPrice, targetLowPrice, targetMeanPrice, targetHighPrice, recommendationMean
-        
+            return (
+                eps,
+                pe,
+                ps,
+                pb,
+                peg,
+                gm,
+                wh52,
+                wl52,
+                currentPrice,
+                targetMedianPrice,
+                targetLowPrice,
+                targetMeanPrice,
+                targetHighPrice,
+                recommendationMean,
+            )
+
         else:
             print(f"Ticker '{ticker_symbol}' not found in the labels list.")
             return None, None, None, None, None, None
@@ -835,10 +881,12 @@ def get_dash_metrics(ticker_symbol, combined_metrics):
         print(f"An error occurred: {e}")
         return None, None, None, None, None, None
 
+
 def format_business_summary(summary):
     summary_no_colons = summary.replace(":", "\:")
     wrapped_summary = textwrap.fill(summary_no_colons)
     return wrapped_summary
+
 
 def calculate_market_profile(data):
     mp = MarketProfile(data)
@@ -849,6 +897,7 @@ def calculate_market_profile(data):
     profile_range = mp_slice.profile_range
 
     return va_high, va_low, poc_price, profile_range
+
 
 def plot_with_volume_profile(
     ticker_symbol,
@@ -861,7 +910,22 @@ def plot_with_volume_profile(
     ticker = yf.Ticker(ticker_symbol)
     data = fetch_historical_data(ticker_symbol, start_date, end_date)
 
-    eps, pe, ps, pb, peg, gm, wh52, wl52, currentPrice, targetMedianPrice, targetLowPrice, targetMeanPrice, targetHighPrice, recommendationMean = get_dash_metrics(ticker_symbol, combined_metrics)
+    (
+        eps,
+        pe,
+        ps,
+        pb,
+        peg,
+        gm,
+        wh52,
+        wl52,
+        currentPrice,
+        targetMedianPrice,
+        targetLowPrice,
+        targetMeanPrice,
+        targetHighPrice,
+        recommendationMean,
+    ) = get_dash_metrics(ticker_symbol, combined_metrics)
 
     if not data.empty:
         va_high, va_low, poc_price, _ = calculate_market_profile(data)
@@ -869,13 +933,17 @@ def plot_with_volume_profile(
 
         if option[0] == "va_high":
             if price > va_high:
-                logging.info(f"{ticker_symbol} - current price is above value area: {price} {va_high} {poc_price}")
+                logging.info(
+                    f"{ticker_symbol} - current price is above value area: {price} {va_high} {poc_price}"
+                )
                 return 0
         elif option[0] == "poc_price":
             if price > poc_price:
-                logging.info(f"{ticker_symbol} - price is above price of control: {price} {va_high} {poc_price}")
+                logging.info(
+                    f"{ticker_symbol} - price is above price of control: {price} {va_high} {poc_price}"
+                )
                 return 0
-        else :
+        else:
             pass
 
         website = ticker.info["website"]
@@ -925,8 +993,7 @@ def plot_with_volume_profile(
                 if market_cap >= 1e9:
                     market_cap_display = f"{market_cap / 1e9:.2f} B"
                 elif market_cap >= 1e6:
-                    market_cap_display = (f"{market_cap / 1e6:.2f} M"
-                    )
+                    market_cap_display = f"{market_cap / 1e6:.2f} M"
                 else:
                     market_cap_display = f"{market_cap:.2f}"
                 st.metric(
@@ -945,10 +1012,10 @@ def plot_with_volume_profile(
         # col1, col2 = st.columns(2)
 
         # with col1:
-            # if peg:
-            #     st.metric(label="PEG", value=f"{round(peg,2)}")
-            # else:
-                # st.metric(label="PEG", value="-")
+        # if peg:
+        #     st.metric(label="PEG", value=f"{round(peg,2)}")
+        # else:
+        # st.metric(label="PEG", value="-")
 
         summary_text = ticker.info["longBusinessSummary"]
 
@@ -959,7 +1026,7 @@ def plot_with_volume_profile(
 
         news_data, total_polarity = get_news_data(ticker_symbol)
 
-        col1_weight, col2_weight, col3_weight = 1, 2, 1  
+        col1_weight, col2_weight, col3_weight = 1, 2, 1
         col1, col2, col3 = st.columns([col1_weight, col2_weight, col3_weight])
 
         with col1:
@@ -996,7 +1063,7 @@ def plot_with_volume_profile(
             #     show_calendar_data(calendar_data)
             # except Exception as e:
             #     logging.error(f"Failed to fetch or display calendar data for {ticker_symbol}: {e}")
-            
+
         with col2:
             display_news_articles(news_data)
         with col3:
@@ -1039,6 +1106,7 @@ def plot_with_volume_profile(
     else:
         print(f"No data found for {ticker_symbol} in the given date range.")
 
+
 def plot_candle_charts_per_symbol(
     industries, start_date, end_date, combined_metrics, final_shortlist_labels, option
 ):
@@ -1080,6 +1148,7 @@ def plot_candle_charts_per_symbol(
 
         logging.info("Finished plotting candle charts for all symbols")
 
+
 def fetch_news(ticker_symbol):
     """Fetch news data for a given ticker symbol with error handling."""
     try:
@@ -1091,6 +1160,7 @@ def fetch_news(ticker_symbol):
     except Exception as e:
         logging.error(f"Failed to fetch news for ticker '{ticker_symbol}': {e}")
         return []
+
 
 def analyze_news_article(article_info):
     """Analyze a single news article and return its processed information."""
@@ -1105,7 +1175,9 @@ def analyze_news_article(article_info):
     blob = TextBlob(article.text)
     polarity = blob.sentiment.polarity
 
-    days_ago = (datetime.now() - datetime.fromtimestamp(article_info["providerPublishTime"])).days
+    days_ago = (
+        datetime.now() - datetime.fromtimestamp(article_info["providerPublishTime"])
+    ).days
 
     return {
         "Title": article_info["title"],
@@ -1115,6 +1187,7 @@ def analyze_news_article(article_info):
         "Days Ago": days_ago,
     }
 
+
 def get_news_data(ticker_symbol):
     """Fetch and analyze news data and calculate total polarity for a given ticker symbol."""
     dnews = fetch_news(ticker_symbol)
@@ -1122,7 +1195,10 @@ def get_news_data(ticker_symbol):
     news_data = []
     print(dnews)
     for article_info in dnews:
-        if all(k in article_info for k in ["link", "providerPublishTime", "title", "publisher"]):
+        if all(
+            k in article_info
+            for k in ["link", "providerPublishTime", "title", "publisher"]
+        ):
             article_data = analyze_news_article(article_info)
             if article_data:
                 total_polarity += article_data["Sentiment"]
@@ -1131,6 +1207,7 @@ def get_news_data(ticker_symbol):
             logging.error(f"Missing required keys in article info: {article_info}")
 
     return news_data, total_polarity
+
 
 def display_news_articles(news_data):
     """Display formatted news articles data"""
@@ -1144,7 +1221,10 @@ def display_news_articles(news_data):
             title = title[:67] + "..."
         rounded_sentiment = round(news_item["Sentiment"], 2)
         days_ago = int(news_item["Days Ago"])
-        st.markdown(f"{rounded_sentiment} - [{re.sub(':', '', title)}]({news_item['Link']}) - ({days_ago} days ago)")
+        st.markdown(
+            f"{rounded_sentiment} - [{re.sub(':', '', title)}]({news_item['Link']}) - ({days_ago} days ago)"
+        )
+
 
 def show_calendar_data(data):
     if data:
@@ -1169,6 +1249,7 @@ def show_calendar_data(data):
 
     else:
         st.write("No calendar data available.")
+
 
 def filter_companies(
     metrics,
