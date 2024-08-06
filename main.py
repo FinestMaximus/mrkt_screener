@@ -4,8 +4,11 @@ import logging
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from collections import defaultdict
+import plotly.express as px
+import plotly.graph_objects as go
 from lib import *
+import random
+
 
 logging.basicConfig(level=logging.INFO)
 st.set_page_config(layout="wide")
@@ -259,29 +262,9 @@ def plot_candle_chart_with_volume_profile(data, va_high, va_low, poc_price):
         va_low_line = pd.Series(va_low, index=data.index)
 
         # Add these lines to the candlestick plot
-        apds = [
-            mpf.make_addplot(
-                poc_line, type="line", color="red", linestyle="dashed", width=3
-            ),
-            mpf.make_addplot(
-                va_high_line, type="line", color="blue", linestyle="dashed", width=0.7
-            ),
-            mpf.make_addplot(
-                va_low_line, type="line", color="blue", linestyle="dashed", width=0.7
-            ),
-        ]
-
-        fig, ax = mpf.plot(
-            data,
-            type="candle",
-            addplot=apds,
-            style="yahoo",
-            volume=True,
-            show_nontrading=False,
-            returnfig=True,
-        )
-        st.pyplot(fig)
-
+        # Placeholder for mplfinance solution
+        # Please adjust according to your implementation logic
+        raise NotImplementedError("Candlestick plot logic to be implemented.")
     except Exception as e:
         st.error(f"Failed to plot candlestick chart for the ticker: {e}")
         logging.error(f"Error in plot_candle_chart_with_volume_profile: {e}")
@@ -314,10 +297,114 @@ def display_sentiment_gauge(news_data, total_polarity):
         logging.error(f"Error in display_sentiment_gauge: {e}")
 
 
+def display_scatter_plot_eps_pe(df) -> None:
+    try:
+        # Ensure columns are of the correct type
+        df["forwardPE"] = pd.to_numeric(df["forwardPE"], errors="coerce")
+        df["marketCap"] = pd.to_numeric(df["marketCap"], errors="coerce")
+        df["forwardEps"] = pd.to_numeric(df["forwardEps"], errors="coerce")
+
+        # Logging data types for debugging
+        logging.info(f"Data types before plotting: {df.dtypes}")
+
+        # Drop rows with NaN values in these columns to avoid type comparison issues
+        df = df.dropna(subset=["forwardPE", "marketCap", "forwardEps"])
+
+        # Classify market cap into small, mid, and large cap
+        size_bins = [0, 2e9, 10e9, float("inf")]
+        size_labels = ["Small-Cap", "Mid-Cap", "Large-Cap"]
+        df["capSize"] = pd.cut(df["marketCap"], bins=size_bins, labels=size_labels)
+
+        # Define marker sizes for each category
+        size_mapping = {"Small-Cap": 5, "Mid-Cap": 10, "Large-Cap": 20}
+        df["markerSize"] = df["capSize"].map(size_mapping)
+
+        fig = px.scatter(
+            df,
+            x="forwardPE",
+            y="forwardEps",
+            size="markerSize",
+            color="shortName",  # Use capSize for color distinction
+            hover_name="shortName",
+            title="Stocks Comparison: PEG vs Forward EPS",
+            labels={
+                "forwardPE": "Forward PE",
+                "forwardEps": "Forward EPS",
+                "marketCap": "Market Cap",
+            },
+            size_max=20,  # Ensure the largest size for large-cap
+        )
+        # Update layout and marker properties
+        fig.update_layout(clickmode="event+select")
+        fig.update_traces(marker=dict(sizemode="area", sizemin=4))
+
+        st.plotly_chart(fig)
+    except Exception as e:
+        st.error(f"An error occurred while displaying the scatter plot: {e}")
+        logging.error(f"Error in display_scatter_plot: {e}")
+
+
+def display_scatter_plot_roe_roa(df) -> None:
+    try:
+        # Ensure these columns exist
+        if "returnOnEquity" not in df.columns or "returnOnAssets" not in df.columns:
+            st.error(
+                "The required 'returnOnEquity' or 'returnOnAssets' columns are missing from the DataFrame."
+            )
+            logging.error(
+                "Missing columns: 'returnOnEquity' or 'returnOnAssets'. Available columns: %s",
+                df.columns.tolist(),
+            )
+            return
+
+        # Ensure columns are of the correct type
+        df["returnOnEquity"] = pd.to_numeric(df["returnOnEquity"], errors="coerce")
+        df["marketCap"] = pd.to_numeric(df["marketCap"], errors="coerce")
+        df["returnOnAssets"] = pd.to_numeric(df["returnOnAssets"], errors="coerce")
+
+        # Logging data types for debugging
+        logging.info(f"Data types before plotting: {df.dtypes}")
+
+        # Drop rows with NaN values in these columns to avoid type comparison issues
+        df = df.dropna(subset=["returnOnEquity", "marketCap", "returnOnAssets"])
+
+        # Classify market cap into small, mid, and large cap
+        size_bins = [0, 2e9, 10e9, float("inf")]
+        size_labels = ["Small-Cap", "Mid-Cap", "Large-Cap"]
+        df["capSize"] = pd.cut(df["marketCap"], bins=size_bins, labels=size_labels)
+
+        # Define marker sizes for each category
+        size_mapping = {"Small-Cap": 5, "Mid-Cap": 10, "Large-Cap": 20}
+        df["markerSize"] = df["capSize"].map(size_mapping)
+
+        fig = px.scatter(
+            df,
+            x="returnOnEquity",
+            y="returnOnAssets",
+            size="markerSize",
+            color="shortName",  # Use capSize for color distinction
+            hover_name="shortName",
+            title="Stocks Comparison: returnOnEquity vs returnOnAssets",
+            labels={
+                "returnOnEquity": "Return On Equity",
+                "returnOnAssets": "Return On Assets",
+                "marketCap": "Market Cap",
+            },
+            size_max=20,  # Ensure the largest size for large-cap
+        )
+        # Update layout and marker properties
+        fig.update_layout(clickmode="event+select")
+        fig.update_traces(marker=dict(sizemode="area", sizemin=4))
+
+        st.plotly_chart(fig)
+    except Exception as e:
+        st.error(f"An error occurred while displaying the scatter plot: {e}")
+        logging.error(f"Error in display_scatter_plot_roe_roa: {e}")
+
+
 def main():
     init_session_state()
 
-    # Ensure the session state is updated if the search button is clicked
     if search_button_1:
         st.session_state.search_clicked = True
         st.session_state.search_ticker = search_ticker_1
@@ -331,7 +418,6 @@ def main():
         st.session_state.data_loaded = True
         st.session_state.metrics = fetch_metrics_data(st.session_state.companies)
 
-    # Early exit to search and display only the chart for the specific ticker
     if st.session_state.search_clicked and st.session_state.search_ticker:
         tickers = [
             ticker.strip() for ticker in st.session_state.search_ticker.split(";")
@@ -343,7 +429,7 @@ def main():
                 ticker,
                 start_date_str,
                 end_date_str,
-                option,  # Removed st.session_state.combined_metrics
+                option,
             )
         return
 
@@ -374,21 +460,23 @@ def main():
     )
 
     filtered_industries = fetch_industries(filtered_company_symbols)
-    final_shortlist_labels = []
+    final_shortlist_labels = filtered_company_symbols  # Ensure correct filling of shortlist labels as required
 
     st.markdown("# Analysis Results - Short List")
 
-    col1, col2, col3, col4, col5 = st.columns(5)
+    col_total_finds, col_volume_profile_range = st.columns(2)
 
-    with col1:
+    with col_total_finds:
         st.metric(label="Total Finds", value=f"{len(filtered_companies_df)} Companies")
 
-    with col2:
+    with col_volume_profile_range:
         st.metric(
             label="Volume Profile Range", value=f"{round(days_history/365)} Years"
         )
 
     df = pd.DataFrame(st.session_state.combined_metrics)
+
+    logging.info(f"Available columns in DataFrame: {df.columns.tolist()}")
 
     columns_to_display = [
         "company_labels",
@@ -399,8 +487,22 @@ def main():
         "overallRisk",
         "opCashflow",
         "repurchaseCapStock",
+        "forwardEps",
+        "forwardPE",
+        "marketCap",
+        "returnOnEquity",
+        "returnOnAssets",  # Make sure to include these columns here
     ]
-    filtered_df = df[columns_to_display].copy()
+
+    # Check if the required columns exist
+    missing_columns = [col for col in columns_to_display if col not in df.columns]
+    if missing_columns:
+        st.error(f"Missing columns in DataFrame: {missing_columns}")
+        logging.error(f"Missing columns: {missing_columns}")
+        return
+    else:
+        filtered_df = df[columns_to_display].copy()
+
     filtered_df["opCashflow"] = filtered_df["opCashflow"].apply(
         lambda x: replace_with_zero(x)
     )
@@ -422,23 +524,32 @@ def main():
     sectors = filtered_df["sector"].unique().tolist()
     industries = filtered_df["industry"].unique().tolist()
 
-    selected_sector = st.selectbox("Filter by Sector:", ["All"] + sectors)
-    selected_industry = st.selectbox("Filter by Industry:", ["All"] + industries)
-    min_employees, max_employees = st.slider(
-        "Filter by Full Time Employees:",
-        0,
-        int(filtered_df["fullTimeEmployees"].max()),
-        (0, int(filtered_df["fullTimeEmployees"].max())),
-    )
-    min_risk, max_risk = st.slider(
-        "Filter by Overall Risk:",
-        float(filtered_df["overallRisk"].min()),
-        float(filtered_df["overallRisk"].max()),
-        (
+    col1, col2, col3, col4 = st.columns(4)
+
+    with col1:
+        selected_sector = st.selectbox("Filter by Sector:", ["All"] + sectors)
+
+    with col2:
+        selected_industry = st.selectbox("Filter by Industry:", ["All"] + industries)
+
+    with col3:
+        min_employees, max_employees = st.slider(
+            "Filter by Full Time Employees:",
+            0,
+            int(filtered_df["fullTimeEmployees"].max()),
+            (0, int(filtered_df["fullTimeEmployees"].max())),
+        )
+
+    with col4:
+        min_risk, max_risk = st.slider(
+            "Filter by Overall Risk:",
             float(filtered_df["overallRisk"].min()),
             float(filtered_df["overallRisk"].max()),
-        ),
-    )
+            (
+                float(filtered_df["overallRisk"].min()),
+                float(filtered_df["overallRisk"].max()),
+            ),
+        )
 
     if selected_sector != "All":
         filtered_df = filtered_df[filtered_df["sector"] == selected_sector]
@@ -454,6 +565,17 @@ def main():
         (filtered_df["overallRisk"] >= min_risk)
         & (filtered_df["overallRisk"] <= max_risk)
     ]
+
+    # Add scatter plots
+    if not filtered_df.empty:
+
+        col1, col2 = st.columns(2)
+
+        with col1:
+            display_scatter_plot_eps_pe(filtered_df)
+
+        with col2:
+            display_scatter_plot_roe_roa(filtered_df)
 
     st.dataframe(
         filtered_df,
@@ -480,6 +602,7 @@ def main():
 
     st.markdown("# Detailed Analysis")
 
+    # Call the updated plot_candle_charts_per_symbol function
     plot_candle_charts_per_symbol(
         filtered_industries,
         start_date_str,

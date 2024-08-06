@@ -1107,19 +1107,31 @@ def plot_with_volume_profile(
         print(f"No data found for {ticker_symbol} in the given date range.")
 
 
+# Updated plot_candle_charts_per_symbol definition
 def plot_candle_charts_per_symbol(
     industries, start_date, end_date, combined_metrics, final_shortlist_labels, option
 ):
     logging.info("Started plotting candle charts for each symbol")
 
     for sector, symbol_list in industries.items():
-        logging.info(f"Processing sector: {sector} with symbols: {len(symbol_list)}")
+        # Filter the symbols based on final_shortlist_labels
+        filtered_symbols = [
+            symbol for symbol in symbol_list if symbol in final_shortlist_labels
+        ]
+
+        if not filtered_symbols:
+            logging.info(f"No filtered symbols to plot for sector: {sector}")
+            continue
+
+        logging.info(
+            f"Processing sector: {sector} with symbols: {len(filtered_symbols)}"
+        )
 
         container = st.container()
 
         sector_commands = []
         all_skipped = True
-        for ticker_symbol in symbol_list:
+        for ticker_symbol in filtered_symbols:
             logging.debug(
                 f"Attempting to plot candle chart for symbol: {ticker_symbol}"
             )
