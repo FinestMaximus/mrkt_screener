@@ -8,6 +8,7 @@ import yfinance as yf
 logging.basicConfig(level=logging.DEBUG)
 st.set_page_config(layout="wide")
 
+
 RATE_LIMIT_SECONDS = 5
 MAX_RETRIES = 5
 
@@ -218,6 +219,7 @@ def display_filtered_results(filtered_df, metrics_filtered, days_history):
             "shortName": st.column_config.TextColumn("Short Name"),
             "sector": st.column_config.TextColumn("Sector"),
             "industry": st.column_config.TextColumn("Industry"),
+            "fullTimeEmployees": st.column_config.TextColumn("Full Time Employees"),
             "fullTimeEmployees": st.column_config.TextColumn("Full Time Employees"),
             "overallRisk": st.column_config.TextColumn("Overall Risk"),
             "freeCashflow": st.column_config.LineChartColumn(
