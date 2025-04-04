@@ -4,7 +4,11 @@ import pandas as pd
 from lib import data_fetching, market_analysis, metrics_handling
 import time
 import yfinance as yf
+from lib import data_fetching, market_analysis, metrics_handling
+import time
+import yfinance as yf
 
+logging.basicConfig(level=logging.DEBUG)
 logging.basicConfig(level=logging.DEBUG)
 st.set_page_config(layout="wide")
 
@@ -17,8 +21,12 @@ with st.sidebar:
     url = "https://pyinvesting.com/fear-and-greed/"
     logging.debug("[main.py][sidebar] Fetching market sentiment for URL: %s", url)
     percentage, sentiment, color_code = data_fetching.fetch_market_sentiment(url)
+    url = "https://pyinvesting.com/fear-and-greed/"
+    logging.debug("[main.py][sidebar] Fetching market sentiment for URL: %s", url)
+    percentage, sentiment, color_code = data_fetching.fetch_market_sentiment(url)
 
     if percentage and sentiment and color_code:
+        logging.debug("[main.py][sidebar] Successfully fetched market sentiment.")
         logging.debug("[main.py][sidebar] Successfully fetched market sentiment.")
         info_text = "% Stocks in the market that are in an uptrend trading above their 6 month exponential moving average (EMA)."
         col1, col2 = st.columns(2)
@@ -66,6 +74,9 @@ with st.sidebar:
             ("va_high", "Current Price inside VA"),
             ("poc_price", "Current Price below POC"),
             ("disabled", "Disable Price Area Filter"),
+            ("va_high", "Current Price inside VA"),
+            ("poc_price", "Current Price below POC"),
+            ("disabled", "Disable Price Area Filter"),
         ],
         format_func=lambda x: x[1],
     )
@@ -90,6 +101,7 @@ def init_session_state():
         st.session_state.combined_metrics = {}
 
 
+
 def display_metrics(metrics_dict):
     if not metrics_dict:
         st.write("No metrics available.")
@@ -102,6 +114,7 @@ def display_metrics(metrics_dict):
                 st.write(f"{sub_key}: {sub_value}")
         else:
             st.write(f"Value: {value}")
+
 
 
 def replace_with_zero(lst):
@@ -119,14 +132,65 @@ def fetch_with_retry(ticker):
             return info
     return None
 
+    return [0.0 if (pd.isna(x) or str(x).lower() == "nan") else x for x in lst]
+
+
+def fetch_with_retry(ticker):
+    for attempt in range(MAX_RETRIES):
+        time.sleep(RATE_LIMIT_SECONDS)
+        stock = yf.Ticker(ticker)
+        info = stock.info
+        if info:
+            return info
+    return None
+
 
 def main():
     init_session_state()
     file_path = "data/tickers.csv"
     logging.debug(f"[main.py][main] Loading tickers from: {file_path}")
+    file_path = "data/tickers.csv"
+    logging.debug(f"[main.py][main] Loading tickers from: {file_path}")
 
     try:
+    try:
         df = pd.read_csv(file_path)
+        if "ticker" not in df.columns:
+            st.error("CSV file must contain a 'ticker' column")
+            return
+
+        companies = df["ticker"].tolist()
+        if not companies:
+            st.error("No tickers found in CSV file")
+            return
+
+    except (FileNotFoundError, pd.errors.EmptyDataError) as e:
+        st.error(f"Error loading tickers file: {str(e)}")
+        return
+
+    with st.spinner("Fetching company data... This may take a few minutes."):
+        progress_bar = st.progress(0)
+        progress_text = st.empty()
+
+        for i, company in enumerate(companies):
+            progress = (i + 1) / len(companies)
+            progress_bar.progress(progress)
+            progress_text.text(f"Processing {company} ({i+1}/{len(companies)})")
+
+        metrics = data_fetching.fetch_metrics_data_for_initial_filtering(
+            companies, fetch_with_retry
+        )
+
+        if (
+            not metrics
+            or "company_labels" not in metrics
+            or not metrics["company_labels"]
+        ):
+            st.error("Failed to fetch metrics data or no company labels found.")
+            return
+
+        st.session_state.companies = companies
+        st.session_state.metrics = metrics
         if "ticker" not in df.columns:
             st.error("CSV file must contain a 'ticker' column")
             return
@@ -181,7 +245,29 @@ def main():
             if filtered_companies_df.empty:
                 st.warning("No companies matched the filtering criteria")
                 return
+        logging.info(
+            f"Fetched metrics for {len(metrics.get('company_labels', []))} companies"
+        )
 
+        with st.spinner("Filtering companies..."):
+            filtered_companies_df = market_analysis.filter_companies(
+                metrics,
+                eps_threshold,
+                peg_threshold_low,
+                peg_threshold_high,
+                gross_margin_threshold,
+            )
+
+            if filtered_companies_df.empty:
+                st.warning("No companies matched the filtering criteria")
+                return
+
+            filtered_company_symbols = filtered_companies_df["company"].tolist()
+
+            with st.spinner("Fetching additional metrics..."):
+                metrics_filtered = data_fetching.fetch_additional_metrics_data(
+                    filtered_company_symbols
+                )
             filtered_company_symbols = filtered_companies_df["company"].tolist()
 
             with st.spinner("Fetching additional metrics..."):
@@ -197,10 +283,21 @@ def main():
 
 
 def display_filtered_results(filtered_df, metrics_filtered, days_history):
+        st.session_state.combined_metrics = metrics_handling.build_combined_metrics(
+            filtered_company_symbols, metrics, metrics_filtered
+        )
+
+        display_filtered_results(filtered_companies_df, metrics_filtered, days_history)
+
+
+def display_filtered_results(filtered_df, metrics_filtered, days_history):
     st.markdown("# Analysis Results - Short List")
 
     col1, col2 = st.columns(2)
+
+    col1, col2 = st.columns(2)
     with col1:
+        st.metric(label="Total Finds", value=f"{len(filtered_df)} Companies")
         st.metric(label="Total Finds", value=f"{len(filtered_df)} Companies")
     with col2:
         st.metric(
@@ -210,8 +307,12 @@ def display_filtered_results(filtered_df, metrics_filtered, days_history):
     display_df = filtered_df.copy()
     if "freeCashflow" in metrics_filtered:
         display_df["freeCashflow"] = metrics_filtered["freeCashflow"]
+    display_df = filtered_df.copy()
+    if "freeCashflow" in metrics_filtered:
+        display_df["freeCashflow"] = metrics_filtered["freeCashflow"]
 
     st.dataframe(
+        display_df,
         display_df,
         width=10000,
         column_config={
@@ -224,10 +325,13 @@ def display_filtered_results(filtered_df, metrics_filtered, days_history):
             "overallRisk": st.column_config.TextColumn("Overall Risk"),
             "freeCashflow": st.column_config.LineChartColumn(
                 "Free Cashflow (4y)", y_min=-200, y_max=200
+            "freeCashflow": st.column_config.LineChartColumn(
+                "Free Cashflow (4y)", y_min=-200, y_max=200
             ),
         },
         hide_index=True,
     )
+
 
 
 if __name__ == "__main__":
