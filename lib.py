@@ -13,6 +13,8 @@ import textwrap
 import logging
 import re
 import time
+import random
+import requests
 
 logging.basicConfig(
     level=logging.INFO,
@@ -20,266 +22,130 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 
+
 def get_date_range(days_back):
     """Helper function to compute start and end date strings."""
     end_date = datetime.now()
     start_date = end_date - timedelta(days=days_back)
     return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
 
-def populate_metrics(ticker, metrics):
+
+def populate_metrics(ticker):
+    metrics = {}
     if ticker and hasattr(ticker, "info"):
         try:
             stock_info = ticker.info
-            metrics["eps_values"].append(stock_info.get("trailingEps", 0))
-            metrics["pe_values"].append(stock_info.get("trailingPE", 0))
-            metrics["peg_values"].append(stock_info.get("pegRatio", 0))
-            metrics["gross_margins"].append(stock_info.get("grossMargins", 0))
-            metrics["sector"].append(stock_info.get("sector", ""))
-            metrics["short_name"].append(stock_info.get("shortName", ""))
-            metrics["fullTimeEmployees"].append(stock_info.get("fullTimeEmployees", ""))
-            metrics["boardRisk"].append(stock_info.get("boardRisk", ""))
-            metrics["industry"].append(stock_info.get("industry", ""))
-            metrics["compensationRisk"].append(stock_info.get("compensationRisk", ""))
-            metrics["shareHolderRightsRisk"].append(
-                stock_info.get("shareHolderRightsRisk", "")
-            )
-            metrics["overallRisk"].append(stock_info.get("overallRisk", ""))
-            metrics["exDividendDate"].append(stock_info.get("exDividendDate", ""))
-            metrics["dividendYield"].append(stock_info.get("dividendYield", ""))
-            metrics["dividendRate"].append(stock_info.get("dividendRate", ""))
-            metrics["priceHint"].append(stock_info.get("priceHint", ""))
-            metrics["fiftyTwoWeekLow"].append(stock_info.get("fiftyTwoWeekLow", ""))
-            metrics["forwardPE"].append(stock_info.get("forwardPE", ""))
-            metrics["marketCap"].append(stock_info.get("marketCap", ""))
-            metrics["beta"].append(stock_info.get("beta", ""))
-            metrics["fiveYearAvgDividendYield"].append(
-                stock_info.get("fiveYearAvgDividendYield", "")
-            )
-            metrics["payoutRatio"].append(stock_info.get("payoutRatio", ""))
-            metrics["ebitdaMargins"].append(stock_info.get("ebitdaMargins", ""))
-            metrics["website"].append(stock_info.get("website", ""))
-            metrics["operatingMargins"].append(stock_info.get("operatingMargins", ""))
-            metrics["financialCurrency"].append(stock_info.get("financialCurrency", ""))
-            metrics["trailingPegRatio"].append(stock_info.get("trailingPegRatio", ""))
-            metrics["fiftyTwoWeekHigh"].append(stock_info.get("fiftyTwoWeekHigh", ""))
-            metrics["priceToSalesTrailing12Months"].append(
-                stock_info.get("priceToSalesTrailing12Months", "")
-            )
-            metrics["fiftyDayAverage"].append(stock_info.get("fiftyDayAverage", ""))
-            metrics["twoHundredDayAverage"].append(
-                stock_info.get("twoHundredDayAverage", "")
-            )
-            metrics["trailingAnnualDividendRate"].append(
-                stock_info.get("trailingAnnualDividendRate", "")
-            )
-            metrics["trailingAnnualDividendYield"].append(
-                stock_info.get("trailingAnnualDividendYield", "")
-            )
-            metrics["currency"].append(stock_info.get("currency", ""))
-            metrics["enterpriseValue"].append(stock_info.get("enterpriseValue", ""))
-            metrics["profitMargins"].append(stock_info.get("profitMargins", ""))
-            metrics["floatShares"].append(stock_info.get("floatShares", ""))
-            metrics["sharesOutstanding"].append(stock_info.get("sharesOutstanding", ""))
-            metrics["sharesShort"].append(stock_info.get("sharesShort", ""))
-            metrics["sharesShortPriorMonth"].append(
-                stock_info.get("sharesShortPriorMonth", "")
-            )
-            metrics["sharesShortPreviousMonthDate"].append(
-                stock_info.get("sharesShortPreviousMonthDate", "")
-            )
-            metrics["dateShortInterest"].append(stock_info.get("dateShortInterest", ""))
-            metrics["sharesPercentSharesOut"].append(
-                stock_info.get("sharesPercentSharesOut", "")
-            )
-            metrics["heldPercentInsiders"].append(
-                stock_info.get("heldPercentInsiders", "")
-            )
-            metrics["heldPercentInstitutions"].append(
-                stock_info.get("heldPercentInstitutions", "")
-            )
-            metrics["shortRatio"].append(stock_info.get("shortRatio", ""))
-            metrics["shortPercentOfFloat"].append(
-                stock_info.get("shortPercentOfFloat", "")
-            )
-            metrics["bookValue"].append(stock_info.get("bookValue", ""))
-            metrics["priceToBook"].append(stock_info.get("priceToBook", ""))
-            metrics["lastFiscalYearEnd"].append(stock_info.get("lastFiscalYearEnd", ""))
-            metrics["nextFiscalYearEnd"].append(stock_info.get("nextFiscalYearEnd", ""))
-            metrics["mostRecentQuarter"].append(stock_info.get("mostRecentQuarter", ""))
-            metrics["earningsQuarterlyGrowth"].append(
-                stock_info.get("earningsQuarterlyGrowth", "")
-            )
-            metrics["netIncomeToCommon"].append(stock_info.get("netIncomeToCommon", ""))
-            metrics["forwardEps"].append(stock_info.get("forwardEps", ""))
-            metrics["lastSplitFactor"].append(stock_info.get("lastSplitFactor", ""))
-            metrics["lastSplitDate"].append(stock_info.get("lastSplitDate", ""))
-            metrics["enterpriseToRevenue"].append(
-                stock_info.get("enterpriseToRevenue", "")
-            )
-            metrics["enterpriseToEbitda"].append(
-                stock_info.get("enterpriseToEbitda", "")
-            )
-            metrics["exchange"].append(stock_info.get("exchange", ""))
-            metrics["quoteType"].append(stock_info.get("quoteType", ""))
-            metrics["symbol"].append(stock_info.get("symbol", ""))
-            metrics["underlyingSymbol"].append(stock_info.get("underlyingSymbol", ""))
-            metrics["shortName"].append(stock_info.get("shortName", ""))
-            metrics["longName"].append(stock_info.get("longName", ""))
-            metrics["firstTradeDateEpochUtc"].append(
-                stock_info.get("firstTradeDateEpochUtc", "")
-            )
-            metrics["timeZoneFullName"].append(stock_info.get("timeZoneFullName", ""))
-            metrics["timeZoneShortName"].append(stock_info.get("timeZoneShortName", ""))
-            metrics["uuid"].append(stock_info.get("uuid", ""))
-            metrics["gmtOffSetMilliseconds"].append(
-                stock_info.get("gmtOffSetMilliseconds", "")
-            )
-            metrics["currentPrice"].append(stock_info.get("currentPrice", ""))
-            metrics["targetHighPrice"].append(stock_info.get("targetHighPrice", ""))
-            metrics["targetLowPrice"].append(stock_info.get("targetLowPrice", ""))
-            metrics["targetMeanPrice"].append(stock_info.get("targetMeanPrice", ""))
-            metrics["targetMedianPrice"].append(stock_info.get("targetMedianPrice", ""))
-            metrics["recommendationMean"].append(
-                stock_info.get("recommendationMean", "")
-            )
-            metrics["recommendationKey"].append(stock_info.get("recommendationKey", ""))
-            metrics["numberOfAnalystOpinions"].append(
-                stock_info.get("numberOfAnalystOpinions", "")
-            )
-            metrics["totalCash"].append(stock_info.get("totalCash", ""))
-            metrics["totalCashPerShare"].append(stock_info.get("totalCashPerShare", ""))
-            metrics["ebitda"].append(stock_info.get("ebitda", ""))
-            metrics["totalDebt"].append(stock_info.get("totalDebt", ""))
-            metrics["quickRatio"].append(stock_info.get("quickRatio", ""))
-            metrics["currentRatio"].append(stock_info.get("currentRatio", ""))
-            metrics["totalRevenue"].append(stock_info.get("totalRevenue", ""))
-            metrics["debtToEquity"].append(stock_info.get("debtToEquity", ""))
-            metrics["revenuePerShare"].append(stock_info.get("revenuePerShare", ""))
-            metrics["returnOnAssets"].append(stock_info.get("returnOnAssets", ""))
-            metrics["returnOnEquity"].append(stock_info.get("returnOnEquity", ""))
-            metrics["freeCashflow"].append(stock_info.get("freeCashflow", ""))
-            metrics["operatingCashflow"].append(stock_info.get("operatingCashflow", ""))
-            metrics["earningsGrowth"].append(stock_info.get("earningsGrowth", ""))
-            metrics["revenueGrowth"].append(stock_info.get("revenueGrowth", ""))
-            metrics["company_labels"].append(ticker.ticker)
-        except Exception as e:
-            st.error(f"Failed to process ticker {ticker.ticker}: {e}")
-    else:
-        st.write(f"Skipped a company ticker due to missing info or an invalid object.")
 
-def worker(company, metrics):
+            # Initialize metrics dictionary with relevant fields
+            important_fields = [
+                "symbol",
+                "longName",
+                "sector",
+                "industry",
+                "marketCap",
+                "currentPrice",
+                "trailingPE",
+                "forwardPE",
+                "priceToBook",
+                "dividendYield",
+                "beta",
+                "fiftyTwoWeekLow",
+                "fiftyTwoWeekHigh",
+                "fiftyDayAverage",
+                "twoHundredDayAverage",
+                "shortRatio",
+                "profitMargins",
+                "operatingMargins",
+                "returnOnAssets",
+                "returnOnEquity",
+                "revenueGrowth",
+                "earningsGrowth",
+                "totalCash",
+                "totalDebt",
+                "debtToEquity",
+                "currentRatio",
+                "bookValue",
+                "priceToSalesTrailing12Months",
+                "targetMeanPrice",
+                "recommendationKey",
+                "averageAnalystRating",
+                "trailingAnnualDividendYield",
+            ]
+
+            # Populate metrics with available data
+            for field in important_fields:
+                if field in stock_info:
+                    metrics[field] = stock_info[field]
+                else:
+                    metrics[field] = None
+
+            return metrics
+
+        except Exception as e:
+            # Avoid using st.error in threads
+            logging.error(f"Failed to process ticker {ticker.ticker}: {e}")
+            return {
+                "error": str(e),
+                "symbol": ticker.ticker if hasattr(ticker, "ticker") else "unknown",
+            }
+    else:
+        # Avoid using st.write in threads
+        logging.warning(f"Skipped ticker due to missing info or invalid object")
+        return {
+            "error": "Missing info or invalid ticker object",
+            "symbol": ticker.ticker if hasattr(ticker, "ticker") else "unknown",
+        }
+
+
+def worker(company):
+    """Worker function to fetch ticker data"""
+    user_agents = [
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:124.0) Gecko/20100101 Firefox/124.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:123.0) Gecko/20100101 Firefox/123.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:124.0) Gecko/20100101 Firefox/124.0",
+        "Mozilla/5.0 (X11; Linux x86_64; rv:124.0) Gecko/20100101 Firefox/124.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Edg/123.0.0.0",
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.3 Safari/605.1.15",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+        "Mozilla/5.0 (Linux; Android 14; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 OPR/109.0.0.0",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Brave/1.62.153",
+        "Mozilla/5.0 (Linux; Android 14; SAMSUNG SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) SamsungBrowser/23.0 Chrome/115.0.0.0 Mobile Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Vivaldi/6.5.3232.45",
+        "Mozilla/5.0 (Linux; U; Android 13; en-US; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/78.0.3904.108 UCBrowser/13.4.0.1306 Mobile Safari/537.36",
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 YaBrowser/24.2.0 Yowser/2.5 Safari/537.36",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 DuckDuckGo/7 Safari/605.1.15",
+    ]
+
     try:
+        user_agent = random.choice(user_agents)
+
+        session = requests.Session()
+        session.headers["User-Agent"] = user_agent
+
         ticker = yf.Ticker(company)
-        populate_metrics(ticker, metrics)
+        metrics = populate_metrics(ticker)
+
+        return metrics
     except Exception as e:
-        print(f"Failed to fetch data for {company}. Error: {e}")
+        return None
+
 
 @st.cache_data(show_spinner="Fetching data from API...", persist=True)
 def fetch_metrics_data(companies):
-    metrics = {
-        metric: []
-        for metric in [
-            "short_name",
-            "eps_values",
-            "pe_values",
-            "sector",
-            "industry",
-            "peg_values",
-            "fullTimeEmployees",
-            "gross_margins",
-            "company_labels",
-            "boardRisk",
-            "compensationRisk",
-            "shareHolderRightsRisk",
-            "overallRisk",
-            "exDividendDate",
-            "dividendYield",
-            "dividendRate",
-            "priceHint",
-            "fiftyTwoWeekLow",
-            "forwardPE",
-            "marketCap",
-            "beta",
-            "fiveYearAvgDividendYield",
-            "payoutRatio",
-            "ebitdaMargins",
-            "website",
-            "operatingMargins",
-            "financialCurrency",
-            "trailingPegRatio",
-            "fiftyTwoWeekHigh",
-            "priceToSalesTrailing12Months",
-            "fiftyDayAverage",
-            "twoHundredDayAverage",
-            "trailingAnnualDividendRate",
-            "trailingAnnualDividendYield",
-            "currency",
-            "enterpriseValue",
-            "profitMargins",
-            "floatShares",
-            "sharesOutstanding",
-            "sharesShort",
-            "sharesShortPriorMonth",
-            "sharesShortPreviousMonthDate",
-            "dateShortInterest",
-            "sharesPercentSharesOut",
-            "heldPercentInsiders",
-            "heldPercentInstitutions",
-            "shortRatio",
-            "shortPercentOfFloat",
-            "bookValue",
-            "priceToBook",
-            "lastFiscalYearEnd",
-            "nextFiscalYearEnd",
-            "mostRecentQuarter",
-            "earningsQuarterlyGrowth",
-            "netIncomeToCommon",
-            "forwardEps",
-            "lastSplitFactor",
-            "lastSplitDate",
-            "enterpriseToRevenue",
-            "enterpriseToEbitda",
-            "exchange",
-            "quoteType",
-            "symbol",
-            "underlyingSymbol",
-            "shortName",
-            "longName",
-            "firstTradeDateEpochUtc",
-            "timeZoneFullName",
-            "timeZoneShortName",
-            "uuid",
-            "gmtOffSetMilliseconds",
-            "currentPrice",
-            "targetHighPrice",
-            "targetLowPrice",
-            "targetMeanPrice",
-            "targetMedianPrice",
-            "recommendationMean",
-            "recommendationKey",
-            "numberOfAnalystOpinions",
-            "totalCash",
-            "totalCashPerShare",
-            "ebitda",
-            "totalDebt",
-            "quickRatio",
-            "currentRatio",
-            "totalRevenue",
-            "debtToEquity",
-            "revenuePerShare",
-            "returnOnAssets",
-            "returnOnEquity",
-            "freeCashflow",
-            "operatingCashflow",
-            "earningsGrowth",
-            "revenueGrowth",
-        ]
-    }
+    max_workers = 3
+    results = []
 
-    with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-        futures = [executor.submit(worker, company, metrics) for company in companies]
-        concurrent.futures.wait(futures)
-    return metrics
+    with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+        results = list(executor.map(worker, companies))
+
+    return results
+
 
 def classify_by_industry(tickers):
     industries = {}
@@ -289,12 +155,13 @@ def classify_by_industry(tickers):
             industries.setdefault(sector, []).append(ticker.ticker)
     return industries
 
+
 def fetch_industries(companies):
     tickers = yf.Tickers(" ".join(companies))
     industries = classify_by_industry(tickers)
     return industries
 
-@st.cache_data(show_spinner="Fetching recommendations from API...", persist=True)
+
 def fetch_recommendations_summary(ticker_symbol):
     ticker = yf.Ticker(ticker_symbol)
     try:
@@ -316,6 +183,7 @@ def fetch_recommendations_summary(ticker_symbol):
     except Exception as e:
         return {"error": f"Error: {str(e)}"}
 
+
 def populate_additional_metrics(ticker_symbol, metrics):
     ticker = yf.Ticker(ticker_symbol)
     if not hasattr(ticker, "info") or not hasattr(ticker, "cashflow"):
@@ -327,7 +195,6 @@ def populate_additional_metrics(ticker_symbol, metrics):
         recommendations_summary = fetch_recommendations_summary(ticker_symbol)
         metrics["recommendations_summary"].append(recommendations_summary)
     except Exception as e:
-        print(f"Failed to fetch recommendations summary: {e}")
         metrics["recommendations_summary"].append(None)
 
     fields_to_add = {
@@ -337,14 +204,14 @@ def populate_additional_metrics(ticker_symbol, metrics):
     }
 
     get_cash_flows(ticker_symbol, fields_to_add, metrics)
-    
+
+
 @st.cache_data(show_spinner="Fetching cashflow from API...", persist=True)
 def get_cash_flows(ticker_symbol, fields_to_add, metrics):
     ticker = yf.Ticker(ticker_symbol)
     try:
         df = ticker.cashflow
     except Exception as e:
-        print(f"Failed to fetch cashflow data: {e}")
         df = None
 
     for key, value in fields_to_add.items():
@@ -370,12 +237,14 @@ def get_cash_flows(ticker_symbol, fields_to_add, metrics):
                 print(f"{ticker.ticker} Failed to process {key}: {e}")
                 metrics[key].append(None)
 
+
 def get_ticker_object(symbol):
     if not isinstance(symbol, str):
         raise ValueError("Symbol must be a string.")
 
     ticker = yf.Ticker(symbol)
     return ticker
+
 
 @st.cache_data(show_spinner="Fetching additional data from API...", persist=True)
 def fetch_additional_metrics_data(companies):
@@ -396,65 +265,37 @@ def fetch_additional_metrics_data(companies):
 
     return metrics
 
-def build_combined_metrics(filtered_company_symbols, metrics, metrics_filtered):
-    if not isinstance(filtered_company_symbols, list):
-        raise ValueError("filtered_company_symbols must be a list")
-    if not isinstance(metrics, dict):
-        raise ValueError("metrics must be a dictionary")
-    if not isinstance(metrics_filtered, dict):
-        raise ValueError("metrics_filtered must be a dictionary")
 
-    metrics.pop("companies_fetched", None)
-    metrics_filtered.pop("companies_fetched", None)
+def build_combined_metrics(company_symbols, metrics, metrics_filtered):
+    combined_metrics = {}
 
-    combined_keys = set(metrics.keys()).union(metrics_filtered.keys()) - {
-        "company_labels",
-        "companies_fetched",
-    }
-    combined_metrics = {key: [] for key in combined_keys}
+    # Add company symbols
+    combined_metrics["company_labels"] = company_symbols
 
-    combined_metrics["company_labels"] = filtered_company_symbols
+    # Add other metrics from the metrics dictionary
+    for key, value in metrics.items():
+        if key != "company_labels":  # Skip this as we've already added it
+            combined_metrics[key] = value
 
-    for symbol in filtered_company_symbols:
-        if "company_labels" in metrics and not isinstance(
-            metrics["company_labels"], list
-        ):
-            raise ValueError("'company_labels' in metrics must be a list")
-
-        metrics_index = (
-            metrics["company_labels"].index(symbol)
-            if "company_labels" in metrics and symbol in metrics["company_labels"]
-            else -1
-        )
-
-        for key in combined_metrics:
-            if key == "company_labels":
-                continue
-
-            if key in metrics and metrics_index >= 0:
-                if isinstance(metrics[key][metrics_index], list):
-                    value = metrics[key][metrics_index]
+    # Add metrics from metrics_filtered
+    for key, value in metrics_filtered.items():
+        if key in combined_metrics:
+            # Check if lengths match before combining
+            if len(value) != len(company_symbols):
+                # Handle length mismatch by padding with None values
+                print(
+                    f"Warning: Length mismatch in combined metrics for key: {key}. Padding with None values."
+                )
+                # If the filtered data is shorter, extend it
+                if len(value) < len(company_symbols):
+                    value = value + [None] * (len(company_symbols) - len(value))
+                # If the filtered data is longer, truncate it
                 else:
-                    value = metrics[key][metrics_index] if len(metrics[key]) > metrics_index else None
-            elif key in metrics_filtered:
-                filtered_index = filtered_company_symbols.index(symbol)
-                value = metrics_filtered[key][filtered_index] if len(metrics_filtered[key]) > filtered_index else None
-            else:
-                value = None
-
-            # Append or extend based on the type of value
-            if isinstance(value, list) and not isinstance(value, str) and key == 'freeCashflow':
-                # Assuming we want to extend to flatten the list of lists where key is 'freeCashflow'
-                combined_metrics[key].extend(value) if isinstance(combined_metrics[key], list) else combined_metrics[key].append([value])
-            else:
-                combined_metrics[key].append(value)
-                
-    expected_length = len(filtered_company_symbols)
-    for key, values_list in combined_metrics.items():
-        if len(values_list) != expected_length:
-            raise ValueError(f"Length mismatch in combined metrics for key: {key}")
+                    value = value[: len(company_symbols)]
+        combined_metrics[key] = value
 
     return combined_metrics
+
 
 @st.cache_data(show_spinner="Fetching historical data from API...", persist=True)
 def fetch_historical_data(
@@ -470,6 +311,7 @@ def fetch_historical_data(
     except Exception as e:
         print(f"Error fetching data for {ticker}: {e}")
         return pd.DataFrame()
+
 
 def plot_sector_distribution_interactive(industries, title):
     sector_counts = {sector: len(tickers) for sector, tickers in industries.items()}
@@ -487,6 +329,7 @@ def plot_sector_distribution_interactive(industries, title):
     )
 
     return fig
+
 
 def plot_combined_interactive(combined_metrics):
     if not combined_metrics or not isinstance(combined_metrics, dict):
@@ -806,11 +649,48 @@ def plot_combined_interactive(combined_metrics):
 
     st.plotly_chart(fig)
 
+
 def get_dash_metrics(ticker_symbol, combined_metrics):
+    # Default return values
+    default_return = (None,) * 14  # Returns 14 None values
 
     try:
+        # First check if all required keys exist
+        required_keys = [
+            "company_labels",
+            "eps_values",
+            "pe_values",
+            "priceToSalesTrailing12Months",
+            "priceToBook",
+            "peg_values",
+            "gross_margins",
+            "fiftyTwoWeekHigh",
+            "fiftyTwoWeekLow",
+            "currentPrice",
+            "targetMedianPrice",
+            "targetLowPrice",
+            "targetMeanPrice",
+            "targetHighPrice",
+            "recommendationMean",
+        ]
+
+        # Check if all required keys exist
+        for key in required_keys:
+            if key not in combined_metrics:
+                print(f"Missing key in combined_metrics: '{key}'")
+                return default_return
+
         if ticker_symbol in combined_metrics["company_labels"]:
             index = combined_metrics["company_labels"].index(ticker_symbol)
+
+            # Check if index is valid for all lists
+            for key in required_keys[1:]:  # Skip company_labels
+                if len(combined_metrics[key]) <= index:
+                    print(
+                        f"Index {index} out of range for key '{key}' with length {len(combined_metrics[key])}"
+                    )
+                    return default_return
+
             eps = combined_metrics["eps_values"][index]
             pe = combined_metrics["pe_values"][index]
             ps = combined_metrics["priceToSalesTrailing12Months"][index]
@@ -820,25 +700,41 @@ def get_dash_metrics(ticker_symbol, combined_metrics):
             wh52 = combined_metrics["fiftyTwoWeekHigh"][index]
             wl52 = combined_metrics["fiftyTwoWeekLow"][index]
             currentPrice = combined_metrics["currentPrice"][index]
-            targetMedianPrice= combined_metrics["targetMedianPrice"][index]
-            targetLowPrice= combined_metrics["targetLowPrice"][index]
-            targetMeanPrice= combined_metrics["targetMeanPrice"][index]
-            targetHighPrice= combined_metrics["targetHighPrice"][index]
-            recommendationMean= combined_metrics["recommendationMean"][index]
+            targetMedianPrice = combined_metrics["targetMedianPrice"][index]
+            targetLowPrice = combined_metrics["targetLowPrice"][index]
+            targetMeanPrice = combined_metrics["targetMeanPrice"][index]
+            targetHighPrice = combined_metrics["targetHighPrice"][index]
+            recommendationMean = combined_metrics["recommendationMean"][index]
 
-            return eps, pe, ps, pb, peg, gm, wh52, wl52, currentPrice, targetMedianPrice, targetLowPrice, targetMeanPrice, targetHighPrice, recommendationMean
-        
+            return (
+                eps,
+                pe,
+                ps,
+                pb,
+                peg,
+                gm,
+                wh52,
+                wl52,
+                currentPrice,
+                targetMedianPrice,
+                targetLowPrice,
+                targetMeanPrice,
+                targetHighPrice,
+                recommendationMean,
+            )
         else:
             print(f"Ticker '{ticker_symbol}' not found in the labels list.")
-            return None, None, None, None, None, None
+            return default_return
     except Exception as e:
-        print(f"An error occurred: {e}")
-        return None, None, None, None, None, None
+        print(f"An error occurred in get_dash_metrics: {e}")
+        return default_return
+
 
 def format_business_summary(summary):
     summary_no_colons = summary.replace(":", "\:")
     wrapped_summary = textwrap.fill(summary_no_colons)
     return wrapped_summary
+
 
 def calculate_market_profile(data):
     mp = MarketProfile(data)
@@ -849,6 +745,7 @@ def calculate_market_profile(data):
     profile_range = mp_slice.profile_range
 
     return va_high, va_low, poc_price, profile_range
+
 
 def fetch_ticker_news_with_retry(ticker_symbol, max_retries=1, delay=2):
     news_data = []
@@ -875,6 +772,7 @@ def fetch_ticker_news_with_retry(ticker_symbol, max_retries=1, delay=2):
 
     return news_data, total_polarity
 
+
 def plot_with_volume_profile(
     ticker_symbol,
     start_date,
@@ -886,7 +784,22 @@ def plot_with_volume_profile(
     ticker = yf.Ticker(ticker_symbol)
     data = fetch_historical_data(ticker_symbol, start_date, end_date)
 
-    eps, pe, ps, pb, peg, gm, wh52, wl52, currentPrice, targetMedianPrice, targetLowPrice, targetMeanPrice, targetHighPrice, recommendationMean = get_dash_metrics(ticker_symbol, combined_metrics)
+    (
+        eps,
+        pe,
+        ps,
+        pb,
+        peg,
+        gm,
+        wh52,
+        wl52,
+        currentPrice,
+        targetMedianPrice,
+        targetLowPrice,
+        targetMeanPrice,
+        targetHighPrice,
+        recommendationMean,
+    ) = get_dash_metrics(ticker_symbol, combined_metrics)
 
     if not data.empty:
         va_high, va_low, poc_price, _ = calculate_market_profile(data)
@@ -894,13 +807,17 @@ def plot_with_volume_profile(
 
         if option[0] == "va_high":
             if price > va_high:
-                logging.info(f"{ticker_symbol} - current price is above value area: {price} {va_high} {poc_price}")
+                logging.info(
+                    f"{ticker_symbol} - current price is above value area: {price} {va_high} {poc_price}"
+                )
                 return 0
         elif option[0] == "poc_price":
             if price > poc_price:
-                logging.info(f"{ticker_symbol} - price is above price of control: {price} {va_high} {poc_price}")
+                logging.info(
+                    f"{ticker_symbol} - price is above price of control: {price} {va_high} {poc_price}"
+                )
                 return 0
-        else :
+        else:
             pass
 
         website = ticker.info["website"]
@@ -950,8 +867,7 @@ def plot_with_volume_profile(
                 if market_cap >= 1e9:
                     market_cap_display = f"{market_cap / 1e9:.2f} B"
                 elif market_cap >= 1e6:
-                    market_cap_display = (f"{market_cap / 1e6:.2f} M"
-                    )
+                    market_cap_display = f"{market_cap / 1e6:.2f} M"
                 else:
                     market_cap_display = f"{market_cap:.2f}"
                 st.metric(
@@ -967,14 +883,6 @@ def plot_with_volume_profile(
             else:
                 st.metric(label="Gross Margin", value="-")
 
-        # col1, col2 = st.columns(2)
-
-        # with col1:
-            # if peg:
-            #     st.metric(label="PEG", value=f"{round(peg,2)}")
-            # else:
-                # st.metric(label="PEG", value="-")
-
         summary_text = ticker.info["longBusinessSummary"]
 
         formatted_summary = format_business_summary(summary_text)
@@ -984,7 +892,7 @@ def plot_with_volume_profile(
 
         news_data, total_polarity = get_news_data(ticker_symbol)
 
-        col1_weight, col2_weight, col3_weight = 1, 2, 1  
+        col1_weight, col2_weight, col3_weight = 1, 2, 1
         col1, col2, col3 = st.columns([col1_weight, col2_weight, col3_weight])
 
         with col1:
@@ -1015,13 +923,6 @@ def plot_with_volume_profile(
                 logging.info(f"No news data available for {ticker_symbol}.")
                 st.write("No sentiment or news data available.")
 
-            # try:
-            #     calendar_data = yf.Ticker(ticker_symbol).calendar
-            #     logging.debug(f"Displaying calendar data for {ticker_symbol}")
-            #     show_calendar_data(calendar_data)
-            # except Exception as e:
-            #     logging.error(f"Failed to fetch or display calendar data for {ticker_symbol}: {e}")
-            
         with col2:
             display_news_articles(news_data)
         with col3:
@@ -1064,6 +965,7 @@ def plot_with_volume_profile(
     else:
         print(f"No data found for {ticker_symbol} in the given date range.")
 
+
 def plot_candle_charts_per_symbol(
     industries, start_date, end_date, combined_metrics, final_shortlist_labels, option
 ):
@@ -1105,6 +1007,7 @@ def plot_candle_charts_per_symbol(
 
         logging.info("Finished plotting candle charts for all symbols")
 
+
 @st.cache_data(show_spinner="Fetching news data from API...", persist=True)
 def fetch_news(ticker_symbol):
     """Fetch news data for a given ticker symbol."""
@@ -1119,6 +1022,7 @@ def fetch_news(ticker_symbol):
         logging.error(f"Failed to fetch ticker data or news for '{ticker_symbol}': {e}")
         return []
 
+
 def analyze_news_article(article_info):
     """Analyze a single news article and return its processed information."""
     try:
@@ -1132,7 +1036,9 @@ def analyze_news_article(article_info):
     blob = TextBlob(article.text)
     polarity = blob.sentiment.polarity
 
-    days_ago = (datetime.now() - datetime.fromtimestamp(article_info["providerPublishTime"])).days
+    days_ago = (
+        datetime.now() - datetime.fromtimestamp(article_info["providerPublishTime"])
+    ).days
 
     return {
         "Title": article_info["title"],
@@ -1142,6 +1048,7 @@ def analyze_news_article(article_info):
         "Days Ago": days_ago,
     }
 
+
 @st.cache_data(show_spinner="Fetching news data from API...", persist=True)
 def get_news_data(ticker_symbol):
     """Fetch and analyze news data and calculate total polarity for a given ticker symbol."""
@@ -1150,7 +1057,10 @@ def get_news_data(ticker_symbol):
     news_data = []
 
     for article_info in dnews:
-        if all(k in article_info for k in ["link", "providerPublishTime", "title", "publisher"]):
+        if all(
+            k in article_info
+            for k in ["link", "providerPublishTime", "title", "publisher"]
+        ):
             article_data = analyze_news_article(article_info)
             if article_data:
                 total_polarity += article_data["Sentiment"]
@@ -1159,6 +1069,7 @@ def get_news_data(ticker_symbol):
             logging.error(f"Missing required keys in article info: {article_info}")
 
     return news_data, total_polarity
+
 
 def display_news_articles(news_data):
     """Display formatted news articles data"""
@@ -1172,7 +1083,10 @@ def display_news_articles(news_data):
             title = title[:67] + "..."
         rounded_sentiment = round(news_item["Sentiment"], 2)
         days_ago = int(news_item["Days Ago"])
-        st.markdown(f"{rounded_sentiment} - [{re.sub(':', '', title)}]({news_item['Link']}) - ({days_ago} days ago)")
+        st.markdown(
+            f"{rounded_sentiment} - [{re.sub(':', '', title)}]({news_item['Link']}) - ({days_ago} days ago)"
+        )
+
 
 def show_calendar_data(data):
     if data:
@@ -1198,164 +1112,81 @@ def show_calendar_data(data):
     else:
         st.write("No calendar data available.")
 
+
 def filter_companies(
-    metrics,
+    list_metrics_all_tickers,
     eps_threshold,
     peg_threshold_low,
     peg_threshold_high,
     gross_margin_threshold,
 ):
-
     try:
+        if not isinstance(list_metrics_all_tickers, list):
+            raise ValueError("list_metrics_all_tickers must be a list")
 
-        if not isinstance(metrics, dict):
-            raise ValueError("metrics must be a dictionary")
-        required_keys = [
-            "company_labels",
-            "eps_values",
-            "pe_values",
-            "peg_values",
-            "gross_margins",
-        ]
-        for key in required_keys:
-            if key not in metrics:
-                raise KeyError(f"Key '{key}' not found in metrics")
-            if not isinstance(metrics[key], list):
-                raise TypeError(f"Value of '{key}' must be a list")
-            if not metrics[key]:
-                raise ValueError(f"List for '{key}' is empty")
+        # Convert list of dictionaries to DataFrame directly
+        df = pd.DataFrame(list_metrics_all_tickers)
 
-        if not (
-            isinstance(eps_threshold, (int, float))
-            and isinstance(peg_threshold_low, (int, float))
-            and isinstance(peg_threshold_high, (int, float))
-            and isinstance(gross_margin_threshold, (int, float))
-        ):
-            raise TypeError("Thresholds must be numeric")
+        # Apply filters using the original column names
+        # Note: These criteria might need adjustment based on the actual data
+        if not df.empty:
+            # Calculate EPS if not directly available
+            if "currentPrice" in df.columns and "trailingPE" in df.columns:
+                df["calculatedEPS"] = df["currentPrice"] / df["trailingPE"]
+                eps_column = "calculatedEPS"
+            else:
+                eps_column = None
 
-        if peg_threshold_low >= peg_threshold_high:
-            raise ValueError("peg_threshold_low must be less than peg_threshold_high")
+            # Keep track of valid criteria
+            valid_criteria = []
 
-        df = pd.DataFrame(
-            {
-                "company": metrics["company_labels"],
-                "eps": metrics["eps_values"],
-                "pe": metrics["pe_values"],
-                "peg": metrics["peg_values"],
-                "gross_margin": metrics["gross_margins"],
-                "short_name": metrics["short_name"],
-                "fullTimeEmployees": metrics["fullTimeEmployees"],
-                "boardRisk": metrics["boardRisk"],
-                "industry": metrics["industry"],
-                "sector": metrics["sector"],
-                "compensationRisk": metrics["compensationRisk"],
-                "shareHolderRightsRisk": metrics["shareHolderRightsRisk"],
-                "overallRisk": metrics["overallRisk"],
-                "exDividendDate": metrics["exDividendDate"],
-                "dividendYield": metrics["dividendYield"],
-                "dividendRate": metrics["dividendRate"],
-                "priceHint": metrics["priceHint"],
-                "fiftyTwoWeekLow": metrics["fiftyTwoWeekLow"],
-                "forwardPE": metrics["forwardPE"],
-                "marketCap": metrics["marketCap"],
-                "beta": metrics["beta"],
-                "fiveYearAvgDividendYield": metrics["fiveYearAvgDividendYield"],
-                "payoutRatio": metrics["payoutRatio"],
-                "ebitdaMargins": metrics["ebitdaMargins"],
-                "website": metrics["website"],
-                "operatingMargins": metrics["operatingMargins"],
-                "financialCurrency": metrics["financialCurrency"],
-                "trailingPegRatio": metrics["trailingPegRatio"],
-                "fiftyTwoWeekHigh": metrics["fiftyTwoWeekHigh"],
-                "priceToSalesTrailing12Months": metrics["priceToSalesTrailing12Months"],
-                "fiftyDayAverage": metrics["fiftyDayAverage"],
-                "twoHundredDayAverage": metrics["twoHundredDayAverage"],
-                "trailingAnnualDividendRate": metrics["trailingAnnualDividendRate"],
-                "trailingAnnualDividendYield": metrics["trailingAnnualDividendYield"],
-                "currency": metrics["currency"],
-                "fullTimeEmployees": metrics["fullTimeEmployees"],
-                "enterpriseValue": metrics["enterpriseValue"],
-                "profitMargins": metrics["profitMargins"],
-                "floatShares": metrics["floatShares"],
-                "sharesOutstanding": metrics["sharesOutstanding"],
-                "sharesShort": metrics["sharesShort"],
-                "sharesShortPriorMonth": metrics["sharesShortPriorMonth"],
-                "sharesShortPreviousMonthDate": metrics["sharesShortPreviousMonthDate"],
-                "dateShortInterest": metrics["dateShortInterest"],
-                "sharesPercentSharesOut": metrics["sharesPercentSharesOut"],
-                "heldPercentInsiders": metrics["heldPercentInsiders"],
-                "heldPercentInstitutions": metrics["heldPercentInstitutions"],
-                "shortRatio": metrics["shortRatio"],
-                "shortPercentOfFloat": metrics["shortPercentOfFloat"],
-                "bookValue": metrics["bookValue"],
-                "priceToBook": metrics["priceToBook"],
-                "lastFiscalYearEnd": metrics["lastFiscalYearEnd"],
-                "nextFiscalYearEnd": metrics["nextFiscalYearEnd"],
-                "mostRecentQuarter": metrics["mostRecentQuarter"],
-                "earningsQuarterlyGrowth": metrics["earningsQuarterlyGrowth"],
-                "netIncomeToCommon": metrics["netIncomeToCommon"],
-                "forwardEps": metrics["forwardEps"],
-                "lastSplitFactor": metrics["lastSplitFactor"],
-                "lastSplitDate": metrics["lastSplitDate"],
-                "enterpriseToRevenue": metrics["enterpriseToRevenue"],
-                "enterpriseToEbitda": metrics["enterpriseToEbitda"],
-                "exchange": metrics["exchange"],
-                "quoteType": metrics["quoteType"],
-                "symbol": metrics["symbol"],
-                "underlyingSymbol": metrics["underlyingSymbol"],
-                "shortName": metrics["shortName"],
-                "longName": metrics["longName"],
-                "firstTradeDateEpochUtc": metrics["firstTradeDateEpochUtc"],
-                "timeZoneFullName": metrics["timeZoneFullName"],
-                "timeZoneShortName": metrics["timeZoneShortName"],
-                "uuid": metrics["uuid"],
-                "gmtOffSetMilliseconds": metrics["gmtOffSetMilliseconds"],
-                "currentPrice": metrics["currentPrice"],
-                "targetHighPrice": metrics["targetHighPrice"],
-                "targetLowPrice": metrics["targetLowPrice"],
-                "targetMeanPrice": metrics["targetMeanPrice"],
-                "targetMedianPrice": metrics["targetMedianPrice"],
-                "recommendationMean": metrics["recommendationMean"],
-                "recommendationKey": metrics["recommendationKey"],
-                "numberOfAnalystOpinions": metrics["numberOfAnalystOpinions"],
-                "totalCash": metrics["totalCash"],
-                "totalCashPerShare": metrics["totalCashPerShare"],
-                "ebitda": metrics["ebitda"],
-                "totalDebt": metrics["totalDebt"],
-                "quickRatio": metrics["quickRatio"],
-                "currentRatio": metrics["currentRatio"],
-                "totalRevenue": metrics["totalRevenue"],
-                "debtToEquity": metrics["debtToEquity"],
-                "revenuePerShare": metrics["revenuePerShare"],
-                "returnOnAssets": metrics["returnOnAssets"],
-                "returnOnEquity": metrics["returnOnEquity"],
-                "freeCashflow": metrics["freeCashflow"],
-                "operatingCashflow": metrics["operatingCashflow"],
-                "earningsGrowth": metrics["earningsGrowth"],
-                "revenueGrowth": metrics["revenueGrowth"],
-            }
-        )
+            # EPS filter
+            if eps_column:
+                valid_criteria.append(df[eps_column] > eps_threshold)
 
-        if df["gross_margin"].max() <= 1:
-            df["gross_margin"] *= 100
+            # Profit margins filter (instead of gross_margin)
+            if "profitMargins" in df.columns:
+                margin_criteria = df["profitMargins"] * 100 > gross_margin_threshold
+                valid_criteria.append(margin_criteria)
 
-        criteria = (
-            (df["eps"] > eps_threshold)
-            & (df["gross_margin"] > gross_margin_threshold)
-            & (df["peg"] > peg_threshold_low)
-            & (df["peg"] <= peg_threshold_high)
-        )
+            # PEG filter - use trailingPE and earningsGrowth
+            if "trailingPE" in df.columns and "earningsGrowth" in df.columns:
+                df["calculatedPEG"] = df["trailingPE"] / df["earningsGrowth"]
+                peg_criteria = (df["calculatedPEG"] > peg_threshold_low) & (
+                    df["calculatedPEG"] <= peg_threshold_high
+                )
+                valid_criteria.append(peg_criteria)
 
-        filtered_df = df[criteria]
+            # Only apply filtering if we have criteria
+            if valid_criteria:
+                combined_criteria = valid_criteria[0]
+                for criterion in valid_criteria[1:]:
+                    combined_criteria = combined_criteria & criterion
 
-        filtered_df_sorted = filtered_df.sort_values(by="pe", ascending=True)
+                filtered_df = df[combined_criteria]
 
-        print(
-            f"Filtered down to {len(filtered_df_sorted)} companies based on criteria."
-        )
+                # Sort by trailingPE if available
+                if "trailingPE" in filtered_df.columns:
+                    filtered_df_sorted = filtered_df.sort_values(
+                        by="trailingPE", ascending=True
+                    )
+                else:
+                    filtered_df_sorted = filtered_df
 
-        return filtered_df_sorted
+                print(
+                    f"Filtered down to {len(filtered_df_sorted)} companies based on criteria."
+                )
+                return filtered_df_sorted
+            else:
+                print("No valid criteria could be applied.")
+                return df
+        else:
+            print("DataFrame is empty.")
+            return df
 
     except Exception as e:
         print(f"An error occurred: {e}")
+        import traceback
+
+        traceback.print_exc()
         return pd.DataFrame()
