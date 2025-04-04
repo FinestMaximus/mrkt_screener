@@ -1,62 +1,11 @@
 import streamlit as st
 import logging
 import pandas as pd
-from lib import *
-from market_sentiment import fetch_market_sentiment
+from analysis.lib import *
+from analysis.market_sentiment import fetch_market_sentiment
 
 logging.basicConfig(level=logging.INFO)
 st.set_page_config(layout="wide")
-
-
-with st.sidebar:
-    url = "https://pyinvesting.com/fear-and-greed/"
-    percentage, sentiment, color_code = fetch_market_sentiment(url)
-
-    if percentage and sentiment and color_code:
-        info_text = "% Stocks in the market that are in an uptrend trading above their 6 month exponential moving average (EMA)."
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.metric(label="Sentiment:", value=percentage, help=info_text)
-
-        with col2:
-            st.markdown(
-                f"<h1 style='color: {color_code};'>{sentiment}</h1>",
-                unsafe_allow_html=True,
-            )
-
-    days_history = st.number_input(
-        "Days History", min_value=365, max_value=36500, value=1825, step=365
-    )
-    eps_threshold = st.number_input(
-        "EPS Threshold", value=0.0, min_value=0.0, max_value=100.0
-    )
-    gross_margin_threshold = st.number_input(
-        "Gross Margin Threshold (%)", value=20.0, min_value=0.0, max_value=100.0
-    )
-    peg_threshold_low = st.number_input(
-        "PEG Lower Threshold", value=0.0, min_value=-100.0, max_value=100.0
-    )
-    peg_threshold_high = st.number_input(
-        "PEG Upper Threshold", value=30.0, min_value=0.0, max_value=100.0
-    )
-
-with st.sidebar:
-    st.sidebar.subheader("Price Type Selection")
-    st.sidebar.write(
-        "Select the type of price you want to analyze. Hover over each option for more details to help you decide."
-    )
-
-    option = st.radio(
-        "Select the price threshold:",
-        options=[
-            ("va_high", "Current Price inside VA"),
-            ("poc_price", "Current Price below POC"),
-            ("disabled", "Disable Price Area Filter"),
-        ],
-        format_func=lambda x: x[1],
-        help="Value Area High (va_high) refers to the highest price level within the Value Area where the majority of trading activity took place. \n\nPoint of Control Price (poc_price) is the price level for the time period with the highest traded volume.",
-    )
 
 
 def display_metrics(metrics_dict):
@@ -144,12 +93,7 @@ def main():
 
     df = pd.DataFrame(combined_metrics)
 
-    # Check what columns are actually available
-    print("Available columns:", df.columns.tolist())
-
-    # Define columns to display based on what's available
-    # Original desired columns
-    desired_columns = [
+    columns_to_display = [
         "company_labels",
         "shortName",
         "sector",
@@ -159,34 +103,21 @@ def main():
         "opCashflow",
         "repurchaseCapStock",
     ]
+    filtered_df: pd.DataFrame = df[columns_to_display].copy()
+    filtered_df["opCashflow"] = filtered_df["opCashflow"].apply(
+        lambda x: replace_with_zero(x)
+    )
+    filtered_df["repurchaseCapStock"] = filtered_df["repurchaseCapStock"].apply(
+        lambda x: replace_with_zero(x)
+    )
 
-    # Filter to only include columns that actually exist
-    columns_to_display = [col for col in desired_columns if col in df.columns]
+    # assert len(metrics_filtered['freeCashflow']) == len(filtered_df), "Mismatch in number of records"
 
-    # If no columns match, use all available columns
-    if not columns_to_display:
-        st.warning(
-            "None of the specified columns were found in the data. Displaying available columns instead."
-        )
-        columns_to_display = df.columns.tolist()
-
-    # Now use the filtered list
-    filtered_df = df[columns_to_display].copy()
-
-    # Only try to process columns that exist
-    if "opCashflow" in filtered_df.columns:
-        filtered_df["opCashflow"] = filtered_df["opCashflow"].apply(
-            lambda x: replace_with_zero(x)
-        )
-
-    if "repurchaseCapStock" in filtered_df.columns:
-        filtered_df["repurchaseCapStock"] = filtered_df["repurchaseCapStock"].apply(
-            lambda x: replace_with_zero(x)
-        )
-        # Only transform if the column exists
-        filtered_df["repurchaseCapStock"] = filtered_df["repurchaseCapStock"].apply(
-            lambda x: [-y for y in x] if isinstance(x, list) else -x
-        )
+    # THIS IS A QUICK FIX FOR MALFOMED freeCashflow inside  build_combined_metrics() - TBF later
+    # filtered_df['freeCashflow'] = metrics_filtered['freeCashflow']
+    filtered_df["repurchaseCapStock"] = filtered_df["repurchaseCapStock"].apply(
+        lambda x: [-y for y in x] if isinstance(x, list) else -x
+    )
 
     st.dataframe(
         filtered_df,
