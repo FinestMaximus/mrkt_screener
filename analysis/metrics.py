@@ -1,5 +1,5 @@
 import pandas as pd
-import logging
+from utils.logger import info, debug, warning, error
 
 
 class FinancialMetrics:
@@ -13,11 +13,13 @@ class FinancialMetrics:
 
         # Add company symbols
         combined_metrics["company_labels"] = company_symbols
+        info(f"Company symbols added: {company_symbols}")
 
         # Add other metrics from the metrics dictionary
         for key, value in basic_metrics.items():
             if key != "company_labels":  # Skip this as we've already added it
                 combined_metrics[key] = value
+                debug(f"Added basic metric '{key}' with value: {value}")
 
         # Add metrics from additional_metrics
         for key, value in additional_metrics.items():
@@ -25,7 +27,7 @@ class FinancialMetrics:
                 # Check if lengths match before combining
                 if len(value) != len(company_symbols):
                     # Handle length mismatch by padding with None values
-                    logging.warning(
+                    warning(
                         f"Length mismatch in combined metrics for key: {key}. Padding with None values."
                     )
                     # If the filtered data is shorter, extend it
@@ -34,67 +36,95 @@ class FinancialMetrics:
                     # If the filtered data is longer, truncate it
                     else:
                         value = value[: len(company_symbols)]
+                debug(f"Combined metric '{key}' adjusted to match company symbols.")
             combined_metrics[key] = value
 
+        info("Combined metrics calculated successfully.")
         return combined_metrics
 
-    def get_dashboard_metrics(self, ticker_symbol, combined_metrics):
+    def get_dashboard_metrics(self, ticker_symbol, metrics):
         """Extract metrics for a specific ticker for dashboard display"""
         # Default return values
         default_return = (None,) * 14  # Returns 14 None values
 
         try:
-            # First check if all required keys exist
-            required_keys = [
-                "company_labels",
-                "eps_values",
-                "pe_values",
-                "priceToSalesTrailing12Months",
-                "priceToBook",
-                "peg_values",
-                "gross_margins",
-                "fiftyTwoWeekHigh",
-                "fiftyTwoWeekLow",
-                "currentPrice",
-                "targetMedianPrice",
-                "targetLowPrice",
-                "targetMeanPrice",
-                "targetHighPrice",
-                "recommendationMean",
-            ]
+            # First check if all required keys exist - updated to match actual available keys
+            debug("combined_metrics keys: " + str(metrics.keys()))
 
-            # Check if all required keys exist
-            for key in required_keys:
-                if key not in combined_metrics:
-                    logging.warning(f"Missing key in combined_metrics: '{key}'")
-                    return default_return
+            # Check if ticker exists in labels
+            if ticker_symbol not in metrics.get("company_labels", []):
+                warning(f"Ticker '{ticker_symbol}' not found in the labels list.")
+                return default_return
 
-            if ticker_symbol in combined_metrics["company_labels"]:
-                index = combined_metrics["company_labels"].index(ticker_symbol)
+            index = metrics["company_labels"].index(ticker_symbol)
+            info(f"Ticker '{ticker_symbol}' found at index {index}.")
 
-                # Check if index is valid for all lists
-                for key in required_keys[1:]:  # Skip company_labels
-                    if len(combined_metrics[key]) <= index:
-                        logging.warning(
-                            f"Index {index} out of range for key '{key}' with length {len(combined_metrics[key])}"
+            # Extract values using available keys, with fallbacks for missing keys
+            try:
+                # Calculate EPS from price and PE ratio if available
+                eps = None
+                if "currentPrice" in metrics and "trailingPE" in metrics:
+                    if metrics["trailingPE"][index] not in (None, 0):
+                        eps = (
+                            metrics["currentPrice"][index]
+                            / metrics["trailingPE"][index]
                         )
-                        return default_return
 
-                eps = combined_metrics["eps_values"][index]
-                pe = combined_metrics["pe_values"][index]
-                ps = combined_metrics["priceToSalesTrailing12Months"][index]
-                pb = combined_metrics["priceToBook"][index]
-                peg = combined_metrics["peg_values"][index]
-                gm = combined_metrics["gross_margins"][index]
-                wh52 = combined_metrics["fiftyTwoWeekHigh"][index]
-                wl52 = combined_metrics["fiftyTwoWeekLow"][index]
-                currentPrice = combined_metrics["currentPrice"][index]
-                targetMedianPrice = combined_metrics["targetMedianPrice"][index]
-                targetLowPrice = combined_metrics["targetLowPrice"][index]
-                targetMeanPrice = combined_metrics["targetMeanPrice"][index]
-                targetHighPrice = combined_metrics["targetHighPrice"][index]
-                recommendationMean = combined_metrics["recommendationMean"][index]
+                # Map keys to their available counterparts
+                pe = metrics.get("trailingPE", [None] * len(metrics["company_labels"]))[
+                    index
+                ]
+                ps = metrics.get(
+                    "priceToSalesTrailing12Months",
+                    metrics.get("forwardPE", [None] * len(metrics["company_labels"])),
+                )[index]
+                pb = metrics.get(
+                    "priceToBook", [None] * len(metrics["company_labels"])
+                )[index]
 
+                # Calculate PEG if possible, otherwise None
+                peg = None
+                if "trailingPE" in metrics and "revenueGrowth" in metrics:
+                    if metrics["revenueGrowth"][index] not in (None, 0):
+                        peg = (
+                            metrics["trailingPE"][index]
+                            / metrics["revenueGrowth"][index]
+                        )
+
+                gm = metrics.get(
+                    "grossMargins", [None] * len(metrics["company_labels"])
+                )[index]
+
+                # 52-week high/low might not be available, use None as fallback
+                wh52 = metrics.get(
+                    "fiftyTwoWeekHigh", [None] * len(metrics["company_labels"])
+                )[index]
+                wl52 = metrics.get(
+                    "fiftyTwoWeekLow", [None] * len(metrics["company_labels"])
+                )[index]
+
+                currentPrice = metrics.get(
+                    "currentPrice", [None] * len(metrics["company_labels"])
+                )[index]
+                targetMedianPrice = metrics.get(
+                    "targetMedianPrice",
+                    [None] * len(metrics["company_labels"]),
+                )[index]
+                targetLowPrice = metrics.get(
+                    "targetLowPrice", [None] * len(metrics["company_labels"])
+                )[index]
+                targetMeanPrice = metrics.get(
+                    "targetMeanPrice", [None] * len(metrics["company_labels"])
+                )[index]
+                targetHighPrice = metrics.get(
+                    "targetHighPrice", [None] * len(metrics["company_labels"])
+                )[index]
+                recommendationMean = metrics.get(
+                    "recommendationMean",
+                    [None] * len(metrics["company_labels"]),
+                )[index]
+
+                info(f"Dashboard metrics extracted for ticker '{ticker_symbol}'.")
                 return (
                     eps,
                     pe,
@@ -111,13 +141,11 @@ class FinancialMetrics:
                     targetHighPrice,
                     recommendationMean,
                 )
-            else:
-                logging.warning(
-                    f"Ticker '{ticker_symbol}' not found in the labels list."
-                )
+            except IndexError as ie:
+                error(f"Index error when retrieving metrics for {ticker_symbol}: {ie}")
                 return default_return
         except Exception as e:
-            logging.error(f"An error occurred in get_dashboard_metrics: {e}")
+            error(f"An error occurred in get_dashboard_metrics: {e}")
             return default_return
 
     def filter_companies(
@@ -135,6 +163,7 @@ class FinancialMetrics:
 
             # Convert list of dictionaries to DataFrame directly
             df = pd.DataFrame(list_metrics_all_tickers)
+            info(f"DataFrame created with {len(df)} entries.")
 
             # Apply filters using the original column names
             if not df.empty:
@@ -142,6 +171,7 @@ class FinancialMetrics:
                 if "currentPrice" in df.columns and "trailingPE" in df.columns:
                     df["calculatedEPS"] = df["currentPrice"] / df["trailingPE"]
                     eps_column = "calculatedEPS"
+                    info("Calculated EPS for filtering.")
                 else:
                     eps_column = None
 
@@ -151,11 +181,15 @@ class FinancialMetrics:
                 # EPS filter
                 if eps_column:
                     valid_criteria.append(df[eps_column] > eps_threshold)
+                    info(f"Applied EPS filter with threshold: {eps_threshold}")
 
                 # Profit margins filter (instead of gross_margin)
                 if "profitMargins" in df.columns:
                     margin_criteria = df["profitMargins"] * 100 > gross_margin_threshold
                     valid_criteria.append(margin_criteria)
+                    info(
+                        f"Applied gross margin filter with threshold: {gross_margin_threshold}"
+                    )
 
                 # PEG filter - use trailingPE and earningsGrowth
                 if "trailingPE" in df.columns and "earningsGrowth" in df.columns:
@@ -164,6 +198,9 @@ class FinancialMetrics:
                         df["calculatedPEG"] <= peg_threshold_high
                     )
                     valid_criteria.append(peg_criteria)
+                    info(
+                        f"Applied PEG filter with thresholds: {peg_threshold_low} - {peg_threshold_high}"
+                    )
 
                 # Only apply filtering if we have criteria
                 if valid_criteria:
@@ -172,31 +209,29 @@ class FinancialMetrics:
                         combined_criteria = combined_criteria & criterion
 
                     filtered_df = df[combined_criteria]
+                    info(
+                        f"Filtered down to {len(filtered_df)} companies based on criteria."
+                    )
 
                     # Sort by trailingPE if available
                     if "trailingPE" in filtered_df.columns:
                         filtered_df_sorted = filtered_df.sort_values(
                             by="trailingPE", ascending=True
                         )
+                        info("Sorted filtered companies by trailing PE.")
                     else:
                         filtered_df_sorted = filtered_df
 
-                    logging.info(
-                        f"Filtered down to {len(filtered_df_sorted)} companies based on criteria."
-                    )
                     return filtered_df_sorted
                 else:
-                    logging.warning("No valid criteria could be applied.")
+                    warning("No valid criteria could be applied.")
                     return df
             else:
-                logging.warning("DataFrame is empty.")
+                warning("DataFrame is empty.")
                 return df
 
         except Exception as e:
-            logging.error(f"An error occurred in filter_companies: {e}")
-            import traceback
-
-            traceback.print_exc()
+            error(f"An error occurred in filter_companies: {e}")
             return pd.DataFrame()
 
     # ... other metrics analysis methods ...

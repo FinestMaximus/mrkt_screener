@@ -3,9 +3,11 @@ import pandas as pd
 import concurrent.futures
 import random
 import requests
-import logging
 from datetime import datetime, timedelta
 import streamlit as st
+from bs4 import BeautifulSoup
+import re
+from utils.logger import info, debug, success, warning, error, critical
 
 
 class DataFetcher:
@@ -35,24 +37,113 @@ class DataFetcher:
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 DuckDuckGo/7 Safari/605.1.15",
         ]
 
-    def get_date_range(self, days_back):
-        """Helper function to compute start and end date strings."""
-        end_date = datetime.now()
-        start_date = end_date - timedelta(days=days_back)
-        return start_date.strftime("%Y-%m-%d"), end_date.strftime("%Y-%m-%d")
+        self.METRICS = [
+            "short_name",
+            "eps_values",
+            "pe_values",
+            "sector",
+            "industry",
+            "peg_values",
+            "fullTimeEmployees",
+            "gross_margins",
+            "company_labels",
+            "boardRisk",
+            "compensationRisk",
+            "shareHolderRightsRisk",
+            "overallRisk",
+            "exDividendDate",
+            "dividendYield",
+            "dividendRate",
+            "priceHint",
+            "fiftyTwoWeekLow",
+            "forwardPE",
+            "marketCap",
+            "beta",
+            "fiveYearAvgDividendYield",
+            "payoutRatio",
+            "ebitdaMargins",
+            "website",
+            "operatingMargins",
+            "financialCurrency",
+            "trailingPegRatio",
+            "fiftyTwoWeekHigh",
+            "priceToSalesTrailing12Months",
+            "fiftyDayAverage",
+            "twoHundredDayAverage",
+            "trailingAnnualDividendRate",
+            "trailingAnnualDividendYield",
+            "currency",
+            "enterpriseValue",
+            "profitMargins",
+            "floatShares",
+            "sharesOutstanding",
+            "sharesShort",
+            "sharesShortPriorMonth",
+            "sharesShortPreviousMonthDate",
+            "dateShortInterest",
+            "sharesPercentSharesOut",
+            "heldPercentInsiders",
+            "heldPercentInstitutions",
+            "shortRatio",
+            "shortPercentOfFloat",
+            "bookValue",
+            "priceToBook",
+            "lastFiscalYearEnd",
+            "nextFiscalYearEnd",
+            "mostRecentQuarter",
+            "earningsQuarterlyGrowth",
+            "netIncomeToCommon",
+            "forwardEps",
+            "lastSplitFactor",
+            "lastSplitDate",
+            "enterpriseToRevenue",
+            "enterpriseToEbitda",
+            "exchange",
+            "quoteType",
+            "symbol",
+            "underlyingSymbol",
+            "longName",
+            "firstTradeDateEpochUtc",
+            "timeZoneFullName",
+            "timeZoneShortName",
+            "uuid",
+            "gmtOffSetMilliseconds",
+            "currentPrice",
+            "targetHighPrice",
+            "targetLowPrice",
+            "targetMeanPrice",
+            "targetMedianPrice",
+            "recommendationMean",
+            "recommendationKey",
+            "numberOfAnalystOpinions",
+            "totalCash",
+            "totalCashPerShare",
+            "ebitda",
+            "totalDebt",
+            "quickRatio",
+            "currentRatio",
+            "totalRevenue",
+            "debtToEquity",
+            "revenuePerShare",
+            "returnOnAssets",
+            "returnOnEquity",
+            "freeCashflow",
+            "operatingCashflow",
+            "earningsGrowth",
+            "revenueGrowth",
+        ]
 
-    @st.cache_data(show_spinner="Fetching data from API...", persist=True)
-    def fetch_ticker_data(self, symbol):
+    def fetch_ticker_data(_self, symbol):
         """Fetch basic ticker data for a single symbol"""
         try:
-            user_agent = random.choice(self.user_agents)
+            user_agent = random.choice(_self.user_agents)
             session = requests.Session()
             session.headers["User-Agent"] = user_agent
 
             ticker = yf.Ticker(symbol)
             return ticker
         except Exception as e:
-            logging.error(f"Error fetching data for {symbol}: {e}")
+            error(f"Error fetching data for {symbol}: {e}")
             return None
 
     @st.cache_data(show_spinner="Fetching data from API...", persist=True)
@@ -77,7 +168,7 @@ class DataFetcher:
 
             return metrics
         except Exception as e:
-            logging.error(f"Worker error for {symbol}: {e}")
+            error(f"Worker error for {symbol}: {e}")
             return None
 
     def _populate_metrics(self, ticker):
@@ -133,13 +224,13 @@ class DataFetcher:
                 return metrics
 
             except Exception as e:
-                logging.error(f"Failed to process ticker {ticker.ticker}: {e}")
+                error(f"Failed to process ticker {ticker.ticker}: {e}")
                 return {
                     "error": str(e),
                     "symbol": ticker.ticker if hasattr(ticker, "ticker") else "unknown",
                 }
         else:
-            logging.warning(f"Skipped ticker due to missing info or invalid object")
+            warning(f"Skipped ticker due to missing info or invalid object")
             return {
                 "error": "Missing info or invalid ticker object",
                 "symbol": ticker.ticker if hasattr(ticker, "ticker") else "unknown",
@@ -147,7 +238,7 @@ class DataFetcher:
 
     @st.cache_data(show_spinner="Fetching historical data from API...", persist=True)
     def fetch_historical_data(
-        self, symbol, start_date, end_date, period=None, interval="3mo"
+        _self, symbol, start_date, end_date, period=None, interval="3mo"
     ):
         """Fetch historical price data for a ticker"""
         ticker = yf.Ticker(symbol)
@@ -158,92 +249,11 @@ class DataFetcher:
                 data = ticker.history(start=start_date, end=end_date, interval=interval)
             return data
         except Exception as e:
-            logging.error(f"Error fetching historical data for {symbol}: {e}")
+            error(f"Error fetching historical data for {symbol}: {e}")
             return pd.DataFrame()
 
-    def classify_by_industry(self, tickers):
-        """Classify tickers by industry/sector"""
-        industries = {}
-        for ticker in tickers.tickers.values():
-            sector = ticker.info.get("sector")
-            if sector:
-                industries.setdefault(sector, []).append(ticker.ticker)
-        return industries
-
-    def fetch_industries(self, companies):
-        """Fetch and classify industries for a list of companies"""
-        tickers = yf.Tickers(" ".join(companies))
-        industries = self.classify_by_industry(tickers)
-        return industries
-
-    @st.cache_data(show_spinner="Fetching recommendations from API...", persist=True)
-    def fetch_recommendations_summary(self, symbol):
-        """Fetch analyst recommendations summary for a ticker"""
-        ticker = yf.Ticker(symbol)
-        try:
-            rec_data = ticker.get_recommendations_summary()
-
-            if not rec_data.empty:
-                return {
-                    row["period"]: {
-                        "strongBuy": row["strongBuy"],
-                        "buy": row["buy"],
-                        "hold": row["hold"],
-                        "sell": row["sell"],
-                        "strongSell": row["strongSell"],
-                    }
-                    for index, row in rec_data.iterrows()
-                }
-            else:
-                return {"message": "No recommendation data available."}
-        except Exception as e:
-            return {"error": f"Error: {str(e)}"}
-
-    @st.cache_data(show_spinner="Fetching additional data from API...", persist=True)
-    def fetch_additional_metrics_data(self, companies):
-        """Fetch additional metrics data for multiple companies"""
-        tickers = yf.Tickers(" ".join(companies))
-        metrics = {
-            metric: []
-            for metric in [
-                "recommendations_summary",
-            ]
-        }
-
-        for company in companies:
-            try:
-                self.populate_additional_metrics(
-                    tickers.tickers[company].ticker, metrics
-                )
-            except KeyError:
-                logging.warning(f"Ticker {company} not found. Skipping.")
-
-        return metrics
-
-    def populate_additional_metrics(self, ticker_symbol, metrics):
-        """Populate additional metrics for a specific ticker"""
-        ticker = yf.Ticker(ticker_symbol)
-        if not hasattr(ticker, "info") or not hasattr(ticker, "cashflow"):
-            raise AttributeError(
-                "The ticker object must have 'info' and 'cashflow' attributes"
-            )
-
-        try:
-            recommendations_summary = self.fetch_recommendations_summary(ticker_symbol)
-            metrics["recommendations_summary"].append(recommendations_summary)
-        except Exception as e:
-            metrics["recommendations_summary"].append(None)
-
-        fields_to_add = {
-            "freeCashflow": None,
-            "opCashflow": None,
-            "repurchaseCapStock": None,
-        }
-
-        self.get_cash_flows(ticker_symbol, fields_to_add, metrics)
-
     @st.cache_data(show_spinner="Fetching cashflow from API...", persist=True)
-    def get_cash_flows(self, ticker_symbol, fields_to_add, metrics):
+    def get_cash_flows(_self, ticker_symbol, fields_to_add, metrics):
         """Get cash flow data for a ticker"""
         ticker = yf.Ticker(ticker_symbol)
         try:
@@ -271,23 +281,71 @@ class DataFetcher:
                         repurchase_capital_stock = df.iloc[1, :].tolist()
                         metrics[key].append(repurchase_capital_stock)
                 except Exception as e:
-                    logging.error(f"{ticker.ticker} Failed to process {key}: {e}")
+                    error(f"{ticker.ticker} Failed to process {key}: {e}")
                     metrics[key].append(None)
             else:
                 metrics[key].append(None)
 
-    @st.cache_data(show_spinner="Fetching news from API...", persist=True)
-    def fetch_news(self, ticker_symbol):
-        """Fetch news data for a given ticker symbol."""
-        try:
-            dnews = yf.Ticker(ticker_symbol).news
-            if not dnews:
-                logging.warning(f"No news found for ticker '{ticker_symbol}'.")
-                return []
-            else:
-                return dnews
-        except Exception as e:
-            logging.error(
-                f"Failed to fetch ticker data or news for '{ticker_symbol}': {e}"
-            )
-            return []
+    @st.cache_data(show_spinner="Fetching ticker info...", persist=True)
+    def fetch_ticker_info(_self, companies, fetch_func=None):
+        """
+        Fetch initial metrics data for filtering companies
+
+        Args:
+            companies (list): List of company tickers
+            fetch_func (callable, optional): Custom function for fetching data with retries
+        """
+        # Change the return structure to a list of dictionaries (one per company)
+        metrics_list = []
+
+        important_metrics_keys = [
+            "symbol",
+            "longName",
+            "sector",
+            "industry",
+            "marketCap",
+            "currentPrice",
+            "targetHighPrice",
+            "targetLowPrice",
+            "targetMeanPrice",
+            "targetMedianPrice",
+            "recommendationMean",
+            "dividendYield",
+            "trailingPE",
+            "forwardPE",
+            "priceToBook",
+            "freeCashflow",
+            "operatingCashflow",
+            "revenueGrowth",
+            "grossMargins",
+            "returnOnEquity",
+        ]
+
+        for company in companies:
+            try:
+                if fetch_func:
+                    info = fetch_func(company)
+                else:
+                    stock = yf.Ticker(company)
+                    info = stock.info
+
+                if info:
+                    # Filter to only include important metrics
+                    important_metrics = {
+                        key: info[key] for key in important_metrics_keys if key in info
+                    }
+                    important_metrics["company"] = company
+                    metrics_list.append(important_metrics)
+                else:
+                    warning(f"No info returned for {company}")
+                    metrics_list.append(
+                        {"company": company, "error": "No data returned"}
+                    )
+
+            except Exception as e:
+                error(f"Error fetching data for {company}: {str(e)}")
+                # Add company with error info to maintain list integrity
+                metrics_list.append({"company": company, "error": str(e)})
+                continue
+
+        return metrics_list
