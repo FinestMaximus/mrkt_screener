@@ -9,6 +9,16 @@ from utils.logger import info, debug, warning, error, critical
 from analysis.metrics import FinancialMetrics
 from analysis.market_profile import MarketProfileAnalyzer
 from data.news_research import SentimentAnalyzer
+import tempfile
+import os
+from datetime import datetime
+import base64
+from io import BytesIO
+import io
+import matplotlib.pyplot as plt
+import mplfinance as mpf
+from matplotlib.gridspec import GridSpec
+from reporting import ReportGenerator
 
 
 # Configure page
@@ -227,6 +237,9 @@ def main():
     """Main application entry point"""
     info("Main function started")
 
+    # Create the report generator at the beginning
+    report_generator = ReportGenerator()
+
     # Custom CSS for better spacing and styling
     st.markdown(
         """
@@ -262,14 +275,16 @@ def main():
         unsafe_allow_html=True,
     )
 
-    # Create a layout with title and button side by side
-    col1, col2 = st.columns([3, 1])
+    # Create a layout with title and buttons side by side
+    col1, col2, col3 = st.columns([3, 1, 1])
     with col1:
         st.title("Stock Analysis Dashboard")
     with col2:
         run_analysis = st.button(
             "Run Analysis", use_container_width=True, type="primary"
         )
+    with col3:
+        generate_report = st.button("📄 Print Report", use_container_width=True)
 
     # Sidebar for market sentiment and inputs
     info("Setting up sidebar")
@@ -399,6 +414,10 @@ def main():
             progress_bar.progress(100)
             info("Core analysis completed successfully")
 
+            # Store the metrics in session state for the report generation
+            st.session_state["metrics"] = metrics
+            st.session_state["analysis_complete"] = True
+
             # Create tabs for different views
             tab1, tab2 = st.tabs(["📊 Metrics Overview", "📈 Detailed Analysis"])
 
@@ -409,9 +428,6 @@ def main():
             with tab2:
                 # Display detailed candle charts
                 st.markdown("## Stock Charts")
-                st.markdown(
-                    "*Charts are limited to 50% of screen width for better visibility*"
-                )
                 info("Starting candle chart generation")
 
                 # Call the plotting function with debug output
@@ -432,7 +448,10 @@ def main():
                         sentiment_analyzer,
                     )
 
-                    info("chart_generator.plot_candle_charts_per_symbol to run next")
+                    # Create monkey patches to capture data during analysis
+                    report_generator.create_monkey_patches(
+                        chart_generator, sentiment_analyzer
+                    )
 
                     # Add a container for the charts with limited width
                     chart_container = st.container()
@@ -468,6 +487,38 @@ def main():
             # Show more detailed error information in a collapsible section
             with st.expander("Error Details"):
                 st.code(traceback.format_exc())
+
+    # Handle report generation
+    if generate_report:
+        if (
+            "analysis_complete" in st.session_state
+            and st.session_state["analysis_complete"]
+        ):
+            with st.spinner("Generating HTML report..."):
+                metrics = st.session_state.get("metrics", {})
+
+                # Generate the report using the report_generator
+                result = report_generator.generate_report(metrics)
+
+                if result:
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    filename = f"stock_analysis_report_{timestamp}.html"
+
+                    st.download_button(
+                        label="📥 Download HTML Report",
+                        data=result,
+                        file_name=filename,
+                        mime="text/html",
+                    )
+                    st.success(
+                        "HTML report generated successfully! Click above to download."
+                    )
+                else:
+                    st.error(
+                        "Failed to generate report. Please check logs for details."
+                    )
+        else:
+            st.warning("Please run the analysis first before generating a report.")
 
 
 if __name__ == "__main__":
