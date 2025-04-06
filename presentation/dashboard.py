@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from utils.logger import info, debug, warning, error
-from utils.helpers import replace_with_zero
+from utils.helpers import replace_with_zero, get_date_range
 
 
 class DashboardManager:
@@ -31,30 +31,47 @@ class DashboardManager:
             st.metric(label="Analysis Period", value=f"{round(days/365)} Years")
         st.markdown("</div>", unsafe_allow_html=True)
 
-        df = pd.DataFrame(metrics)
-        debug(f"Dashboard dataframe shape: {df.shape}")
-        debug(f"Dashboard dataframe columns: {df.columns.tolist()}")
+        # Verify array lengths before creating DataFrame
+        array_lengths = {
+            k: len(v)
+            for k, v in metrics.items()
+            if isinstance(v, list) and k != "days_history"
+        }
 
-        # Apply filters if provided
-        if filters:
-            df = self._apply_filters(df, filters)
-            debug(f"After filters, dataframe shape: {df.shape}")
+        if len(set(array_lengths.values())) > 1:
+            error(f"Inconsistent array lengths detected: {array_lengths}")
+            st.error("Data inconsistency detected. Please try again.")
+            return
 
-        # Transform cashflow data for better visualization
-        self._transform_cashflow_data(df)
+        try:
+            df = pd.DataFrame(metrics)
+            debug(f"Dashboard dataframe shape: {df.shape}")
+            debug(f"Dashboard dataframe columns: {df.columns.tolist()}")
 
-        # Display dataframe with dynamic column configuration
-        info("Displaying final metrics dashboard")
-        column_config = self._create_column_config(df)
+            # Apply filters if provided
+            if filters:
+                df = self._apply_filters(df, filters)
+                debug(f"After filters, dataframe shape: {df.shape}")
 
-        st.dataframe(
-            df,
-            height=400,  # Limit height to ensure it doesn't take too much space
-            use_container_width=True,  # Use container width instead of fixed width
-            column_config=column_config,
-            hide_index=True,
-        )
-        info("Metrics dashboard displayed successfully")
+            # Transform cashflow data for better visualization
+            self._transform_cashflow_data(df)
+
+            # Display dataframe with dynamic column configuration
+            info("Displaying final metrics dashboard")
+            column_config = self._create_column_config(df)
+
+            st.dataframe(
+                df,
+                height=400,  # Limit height to ensure it doesn't take too much space
+                use_container_width=True,  # Use container width instead of fixed width
+                column_config=column_config,
+                hide_index=True,
+            )
+            info("Metrics dashboard displayed successfully")
+
+        except Exception as e:
+            error(f"Error creating DataFrame: {str(e)}")
+            st.error(f"Error processing metrics data: {str(e)}")
 
     def _transform_cashflow_data(self, df):
         """Transform financial data for better visualization"""
@@ -419,71 +436,59 @@ class DashboardManager:
     def filter_by_price_area(self, metrics, filtered_company_symbols, price_option):
         """
         Filter companies based on price position relative to Value Area and POC
-
-        Args:
-            metrics (dict): Metrics data for all companies
-            filtered_company_symbols (list): List of company symbols already filtered by other criteria
-            price_option (str): Selected price area filter option ('va_high', 'poc_price', or 'disabled')
-
-        Returns:
-            list: Further filtered list of company symbols
         """
         if price_option == "disabled":
             return filtered_company_symbols
 
+        # Import required classes here to avoid circular imports
+        from analysis.market_profile import MarketProfileAnalyzer
+        from data.tickers_yf_fetcher import DataFetcher
+        from utils.helpers import get_date_range
+
+        # Get instances needed for calculation
+        market_profile_analyzer = MarketProfileAnalyzer()
+        data_fetcher = DataFetcher()
+
+        # Get date range (use days_history from metrics)
+        days_back = metrics.get("days_history", 1825)  # Default to 5 years if not found
+        start_date, end_date = get_date_range(days_back)
+
         filtered_symbols = []
 
-        # Get indices of companies that match the criteria
-        for i, symbol in enumerate(filtered_company_symbols):
-            if symbol not in metrics["company_labels"]:
-                continue
+        # Process each symbol
+        for symbol in filtered_company_symbols:
+            try:
+                # Fetch historical data for this symbol
+                data = data_fetcher.fetch_historical_data(symbol, start_date, end_date)
 
-            idx = metrics["company_labels"].index(symbol)
-
-            if price_option == "va_high":
-                # Check if current price is inside Value Area (between VA low and VA high)
-                if (
-                    "current_price" in metrics
-                    and "va_high" in metrics
-                    and "va_low" in metrics
-                ):
-                    current_price = (
-                        metrics["current_price"][idx]
-                        if idx < len(metrics["current_price"])
-                        else None
-                    )
-                    va_high = (
-                        metrics["va_high"][idx]
-                        if idx < len(metrics["va_high"])
-                        else None
-                    )
-                    va_low = (
-                        metrics["va_low"][idx] if idx < len(metrics["va_low"]) else None
+                if not data.empty:
+                    # Calculate market profile
+                    va_high, va_low, poc_price, _ = (
+                        market_profile_analyzer.calculate_market_profile(data)
                     )
 
-                    if (
-                        current_price
-                        and va_high
-                        and va_low
-                        and va_low <= current_price <= va_high
+                    # Get current price (use last closing price as approximation)
+                    current_price = data["Close"].iloc[-1] if not data.empty else None
+
+                    # Apply filtering based on price option
+                    if all(
+                        value is not None
+                        for value in [current_price, poc_price, va_high, va_low]
                     ):
-                        filtered_symbols.append(symbol)
+                        if price_option == "va_high":
+                            # Check if current price is inside Value Area
+                            if va_low <= current_price <= va_high:
+                                filtered_symbols.append(symbol)
+                        elif price_option == "poc_price":
+                            # Check if current price is below POC
+                            if current_price < poc_price:
+                                filtered_symbols.append(symbol)
+                else:
+                    debug(f"No historical data found for {symbol}")
+            except Exception as e:
+                warning(f"Error in market profile calculation for {symbol}: {e}")
 
-            elif price_option == "poc_price":
-                # Check if current price is below POC
-                if "current_price" in metrics and "poc_price" in metrics:
-                    current_price = (
-                        metrics["current_price"][idx]
-                        if idx < len(metrics["current_price"])
-                        else None
-                    )
-                    poc_price = (
-                        metrics["poc_price"][idx]
-                        if idx < len(metrics["poc_price"])
-                        else None
-                    )
-
-                    if current_price and poc_price and current_price < poc_price:
-                        filtered_symbols.append(symbol)
-
+        info(
+            f"Filtered down to {len(filtered_symbols)} symbols based on {price_option} filter"
+        )
         return filtered_symbols

@@ -189,6 +189,64 @@ def main():
             # Further filter companies based on price area analysis if needed
             if price_option != "disabled":
                 status_text.text("Filtering by price area analysis...")
+
+                # NEW CODE: Calculate market profile metrics first
+                # Create required instances
+                market_profile_analyzer = MarketProfileAnalyzer()
+
+                # Get date range for historical data (already defined above, so we reuse it)
+
+                # Add market profile metrics to the metrics dictionary
+                poc_prices = []
+                va_highs = []
+                va_lows = []
+                current_prices = []
+
+                for symbol in filtered_company_symbols:
+                    try:
+                        # Fetch historical data for this symbol
+                        data = data_fetcher.fetch_historical_data(
+                            symbol, start_date, end_date
+                        )
+
+                        if not data.empty:
+                            # Calculate market profile
+                            va_high, va_low, poc_price, _ = (
+                                market_profile_analyzer.calculate_market_profile(data)
+                            )
+
+                            # Get current price (use last closing price as approximation)
+                            current_price = (
+                                data["Close"].iloc[-1] if not data.empty else None
+                            )
+
+                            # Store values
+                            poc_prices.append(poc_price)
+                            va_highs.append(va_high)
+                            va_lows.append(va_low)
+                            current_prices.append(current_price)
+                        else:
+                            # No data available
+                            poc_prices.append(None)
+                            va_highs.append(None)
+                            va_lows.append(None)
+                            current_prices.append(None)
+                    except Exception as e:
+                        debug(
+                            f"Error calculating market profile for {symbol}: {str(e)}"
+                        )
+                        poc_prices.append(None)
+                        va_highs.append(None)
+                        va_lows.append(None)
+                        current_prices.append(None)
+
+                # Add these to the metrics dictionary
+                metrics["poc_price"] = poc_prices
+                metrics["va_high"] = va_highs
+                metrics["va_low"] = va_lows
+                metrics["current_price"] = current_prices
+
+                # Now filter with the updated metrics
                 filtered_company_symbols = dashboard_manager.filter_by_price_area(
                     metrics, filtered_company_symbols, price_option
                 )
@@ -198,13 +256,10 @@ def main():
                     filtered_companies_df["symbol"].isin(filtered_company_symbols)
                 ]
 
-                # Update metrics with the filtered data
-                metrics["company_labels"] = filtered_company_symbols
-
-                # Update all other metrics lists to match the filtered data
-                for column in filtered_companies_df.columns:
-                    if column not in ["company", "symbol"]:
-                        metrics[column] = filtered_companies_df[column].tolist()
+                # NEW CODE: Ensure all arrays in metrics have the same length
+                metrics = update_metrics_after_filtering(
+                    metrics, filtered_company_symbols
+                )
 
                 status_text.text(
                     f"Found {len(filtered_company_symbols)} companies matching price area filter..."
@@ -322,6 +377,68 @@ def main():
                     )
         else:
             st.warning("Please run the analysis first before generating a report.")
+
+
+def update_metrics_after_filtering(metrics, filtered_company_symbols):
+    """Ensure all arrays in metrics have the same length as filtered_company_symbols"""
+    # Create indices mapping from original to filtered symbols
+    original_symbols = metrics["company_labels"]
+
+    # Add debug logging to track the filtering process
+    debug(f"Original symbols count: {len(original_symbols)}")
+    debug(f"Filtered symbols count: {len(filtered_company_symbols)}")
+
+    # Ensure we only include symbols that exist in the original list
+    filtered_valid_symbols = [
+        symbol for symbol in filtered_company_symbols if symbol in original_symbols
+    ]
+    indices_to_keep = [
+        original_symbols.index(symbol) for symbol in filtered_valid_symbols
+    ]
+
+    debug(f"Valid filtered symbols count: {len(filtered_valid_symbols)}")
+
+    # Create a new metrics dictionary with consistent lengths
+    updated_metrics = {"company_labels": filtered_valid_symbols}
+    updated_metrics["days_history"] = metrics.get(
+        "days_history", 1825
+    )  # Preserve non-list value
+
+    # Process list values with strict length checking
+    for key, value in metrics.items():
+        if key == "company_labels" or key == "days_history":
+            continue  # Already handled
+
+        if isinstance(value, list):
+            if len(value) == len(original_symbols):
+                # Filter this array to match filtered symbols
+                updated_metrics[key] = [value[i] for i in indices_to_keep]
+            else:
+                # Skip arrays with inconsistent lengths
+                debug(
+                    f"Skipping key '{key}' - length mismatch: {len(value)} vs {len(original_symbols)}"
+                )
+        else:
+            # Copy non-list values as is
+            updated_metrics[key] = value
+
+    # Final validation - ensure all arrays have the same length
+    array_lengths = {
+        k: len(v)
+        for k, v in updated_metrics.items()
+        if isinstance(v, list) and k != "days_history"
+    }
+
+    if len(set(array_lengths.values())) > 1:
+        debug(f"WARNING: Inconsistent array lengths: {array_lengths}")
+        # Remove any arrays with incorrect length
+        target_length = len(filtered_valid_symbols)
+        keys_to_remove = [k for k, v in array_lengths.items() if v != target_length]
+        for key in keys_to_remove:
+            debug(f"Removing inconsistent array: {key}")
+            del updated_metrics[key]
+
+    return updated_metrics
 
 
 if __name__ == "__main__":

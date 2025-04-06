@@ -129,7 +129,10 @@ class CandlestickCharts(ChartBase):
         )
 
         # Highlight POC in volume profile
-        poc_bin_idx = max(range(len(volume_by_price)), key=volume_by_price.__getitem__)
+        poc_bin_idx = min(
+            range(len(price_levels) - 1),
+            key=lambda i: abs((price_levels[i] + price_levels[i + 1]) / 2 - poc_price),
+        )
         ax2.barh(
             price_levels[poc_bin_idx],
             volume_by_price[poc_bin_idx],
@@ -477,9 +480,9 @@ class CandlestickCharts(ChartBase):
         )
 
         # Highlight POC and Value Area in the volume profile
-        poc_bin_idx = max(
-            range(len(buy_volume_by_price)),
-            key=lambda i: buy_volume_by_price[i] + sell_volume_by_price[i],
+        poc_bin_idx = min(
+            range(len(price_levels) - 1),
+            key=lambda i: abs((price_levels[i] + price_levels[i + 1]) / 2 - poc_price),
         )
 
         # Highlight the POC bin with high opacity
@@ -938,23 +941,20 @@ class CandlestickCharts(ChartBase):
             # FIX ENDS HERE
 
             # Check if the price is within the value area based on the selected option
-            if (
-                current_price is not None
-                and va_high is not None
-                and poc_price is not None
-            ):
-                if option[0] == "va_high":
-                    if current_price > va_high:
-                        info(
-                            f"{ticker_symbol} - current price is above value area: {current_price} (VA High: {va_high}, POC: {poc_price})"
-                        )
-                        return 0
-                elif option[0] == "poc_price":
-                    if current_price > poc_price:
-                        info(
-                            f"{ticker_symbol} - price is above price of control: {current_price} (VA High: {va_high}, POC: {poc_price})"
-                        )
-                        return 0
+            if option[0] == "va_high":
+                # Filter OUT stocks where price is NOT in value area
+                if current_price < va_low or current_price > va_high:
+                    info(
+                        f"{ticker_symbol} - current price is outside value area: {current_price} (VA Low: {va_low}, VA High: {va_high})"
+                    )
+                    return 0
+            elif option[0] == "poc_price":
+                # Filter OUT stocks where price is NOT below POC
+                if current_price >= poc_price:
+                    info(
+                        f"{ticker_symbol} - price is not below POC: {current_price} (POC: {poc_price})"
+                    )
+                    return 0
 
             # Get company information
             if ticker and hasattr(ticker, "info"):
