@@ -8,6 +8,7 @@ import streamlit as st
 from bs4 import BeautifulSoup
 import re
 from utils.logger import info, debug, success, warning, error, critical
+import time
 
 
 class DataFetcher:
@@ -35,6 +36,11 @@ class DataFetcher:
             "Mozilla/5.0 (Linux; U; Android 13; en-US; Pixel 7) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/78.0.3904.108 UCBrowser/13.4.0.1306 Mobile Safari/537.36",
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 YaBrowser/24.2.0 Yowser/2.5 Safari/537.36",
             "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 DuckDuckGo/7 Safari/605.1.15",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Opera/90.0.0.0",
+            "Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36 Opera/90.0.0.0",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Firefox/90.0.0.0",
+            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36 Firefox/90.0.0.0",
+            "Mozilla/5.0 (Linux; Android 14; SM-G998B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Mobile Safari/537.36 Firefox/90.0.0.0",
         ]
 
         self.METRICS = [
@@ -147,14 +153,52 @@ class DataFetcher:
             return None
 
     @st.cache_data(show_spinner="Fetching data from API...", persist=True)
-    def fetch_multiple_tickers(self, symbols, max_workers=3):
-        """Fetch ticker data for multiple symbols concurrently"""
-        results = []
+    def fetch_multiple_tickers(self, symbols, max_workers=5, batch_size=100):
+        """Fetch ticker data for multiple symbols concurrently with batching"""
+        all_results = []
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
-            results = list(executor.map(self._worker, symbols))
+        # Process in batches to avoid overwhelming the API
+        for i in range(0, len(symbols), batch_size):
+            batch = symbols[i : i + batch_size]
+            info(
+                f"Processing batch {i//batch_size + 1}/{(len(symbols) + batch_size - 1)//batch_size} ({len(batch)} symbols)"
+            )
 
-        return results
+            results = []
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=max_workers
+            ) as executor:
+                results = list(executor.map(self._worker, batch))
+
+            # Filter out None results and retry failed ones with delay
+            failed_symbols = [
+                symbol for symbol, result in zip(batch, results) if result is None
+            ]
+            if failed_symbols:
+                info(f"Retrying {len(failed_symbols)} failed symbols with delay...")
+                time.sleep(5)  # Wait before retrying
+                retry_results = []
+                with concurrent.futures.ThreadPoolExecutor(
+                    max_workers=2
+                ) as retry_executor:
+                    retry_results = list(
+                        retry_executor.map(self._worker, failed_symbols)
+                    )
+
+            # Replace None values with retry results
+            for j, symbol in enumerate(batch):
+                if results[j] is None and symbol in failed_symbols:
+                    idx = failed_symbols.index(symbol)
+                    results[j] = retry_results[idx]
+
+            all_results.extend(results)
+
+            # Add delay between batches to avoid rate limiting
+            if i + batch_size < len(symbols):
+                info(f"Pausing between batches to avoid rate limits...")
+                time.sleep(random.uniform(3, 5))
+
+        return all_results
 
     def _worker(self, symbol):
         """Worker function for concurrent ticker fetching"""
@@ -162,6 +206,9 @@ class DataFetcher:
             user_agent = random.choice(self.user_agents)
             session = requests.Session()
             session.headers["User-Agent"] = user_agent
+
+            # Add random delay to avoid rate limiting
+            time.sleep(random.uniform(0.5, 2))
 
             ticker = yf.Ticker(symbol)
             metrics = self._populate_metrics(ticker)
@@ -212,6 +259,7 @@ class DataFetcher:
                     "recommendationKey",
                     "averageAnalystRating",
                     "trailingAnnualDividendYield",
+                    "trailingPegRatio",
                 ]
 
                 # Populate metrics with available data
@@ -286,18 +334,40 @@ class DataFetcher:
             else:
                 metrics[key].append(None)
 
-    @st.cache_data(show_spinner="Fetching ticker info...", persist=True)
-    def fetch_ticker_info(_self, companies, fetch_func=None):
-        """
-        Fetch initial metrics data for filtering companies
+    @st.cache_data(show_spinner=False, persist=True)
+    def _cached_fetch_ticker_info(_self, company):
+        """Cached part of fetching ticker info"""
+        try:
+            stock = yf.Ticker(company)
+            return stock.info
+        except Exception as e:
+            error(f"Error fetching data for {company}: {str(e)}")
+            return None
+
+    def fetch_ticker_info(
+        self,
+        tickers,
+        _progress_callback=None,
+        max_workers=20,
+        batch_size=100,
+        use_cache=True,
+    ):
+        """Fetch ticker information in parallel batches with progress tracking
 
         Args:
-            companies (list): List of company tickers
-            fetch_func (callable, optional): Custom function for fetching data with retries
+            tickers: List of ticker symbols to fetch
+            _progress_callback: Optional callback function to report progress
+            max_workers: Number of concurrent workers for parallel processing
+            batch_size: Size of each batch of tickers
+            use_cache: Whether to assume cache is present and use larger batches
         """
-        # Change the return structure to a list of dictionaries (one per company)
-        metrics_list = []
+        # Use larger batch sizes when cache is expected to be present
+        if use_cache:
+            # When cache is present, we can process more tickers at once
+            batch_size = max(batch_size, 5000)  # Increase to at least 200
+            max_workers = max(max_workers, 30)  # Increase worker count too
 
+        metrics_list = []
         important_metrics_keys = [
             "symbol",
             "longName",
@@ -319,33 +389,64 @@ class DataFetcher:
             "revenueGrowth",
             "grossMargins",
             "returnOnEquity",
+            "trailingPegRatio",
         ]
 
-        for company in companies:
-            try:
-                if fetch_func:
-                    info = fetch_func(company)
-                else:
-                    stock = yf.Ticker(company)
-                    info = stock.info
+        total_companies = len(tickers)
+        processed_count = 0
 
-                if info:
-                    # Filter to only include important metrics
-                    important_metrics = {
-                        key: info[key] for key in important_metrics_keys if key in info
-                    }
-                    important_metrics["company"] = company
-                    metrics_list.append(important_metrics)
-                else:
-                    warning(f"No info returned for {company}")
-                    metrics_list.append(
-                        {"company": company, "error": "No data returned"}
-                    )
+        # Process in batches to avoid overwhelming the API
+        for i in range(0, len(tickers), batch_size):
+            batch = tickers[i : i + batch_size]
+            info(
+                f"Processing batch {i//batch_size + 1}/{(len(tickers) + batch_size - 1)//batch_size} ({len(batch)} symbols)"
+            )
 
-            except Exception as e:
-                error(f"Error fetching data for {company}: {str(e)}")
-                # Add company with error info to maintain list integrity
-                metrics_list.append({"company": company, "error": str(e)})
-                continue
+            # Process batch in parallel
+            batch_results = []
+            with concurrent.futures.ThreadPoolExecutor(
+                max_workers=max_workers
+            ) as executor:
+                # Create a map of future to company for tracking
+                future_to_company = {
+                    executor.submit(self._cached_fetch_ticker_info, company): company
+                    for company in batch
+                }
+
+                for future in concurrent.futures.as_completed(future_to_company):
+                    company = future_to_company[future]
+                    processed_count += 1
+
+                    try:
+                        # Rename the variable to avoid conflict with the info() logging function
+                        ticker_info = future.result()
+                        if ticker_info:
+                            # Filter to only include important metrics
+                            important_metrics = {
+                                key: ticker_info.get(key, None)
+                                for key in important_metrics_keys
+                            }
+                            important_metrics["company"] = company
+                            batch_results.append(important_metrics)
+                        else:
+                            warning(f"No info returned for {company}")
+                            batch_results.append(
+                                {"company": company, "error": "No data returned"}
+                            )
+                    except Exception as e:
+                        error(f"Error processing {company}: {str(e)}")
+                        batch_results.append({"company": company, "error": str(e)})
+
+                    # Update progress after each ticker is processed
+                    if _progress_callback and callable(_progress_callback):
+                        _progress_callback(processed_count, total_companies, company)
+
+            # Add batch results to the full metrics list
+            metrics_list.extend(batch_results)
+
+            # Add delay between batches to avoid rate limiting
+            if i + batch_size < len(tickers):
+                info(f"Pausing between batches to avoid rate limits...")
+                time.sleep(random.uniform(2, 4))
 
         return metrics_list

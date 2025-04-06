@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from data.tickers_yf_fetcher import DataFetcher
-from data.fear_greed_indicator import FearGreedIndicator
 from visualization.charts import ChartGenerator
 from utils.helpers import get_date_range, replace_with_zero
 import traceback
@@ -9,16 +8,10 @@ from utils.logger import info, debug, warning, error, critical
 from analysis.metrics import FinancialMetrics
 from analysis.market_profile import MarketProfileAnalyzer
 from data.news_research import SentimentAnalyzer
-import tempfile
-import os
 from datetime import datetime
-import base64
-from io import BytesIO
-import io
-import matplotlib.pyplot as plt
-import mplfinance as mpf
-from matplotlib.gridspec import GridSpec
 from reporting import ReportGenerator
+from presentation.sidebar import SidebarManager
+from presentation.dashboard import DashboardManager
 
 
 # Configure page
@@ -30,215 +23,13 @@ st.set_page_config(
 info("Application started")
 
 
-def display_market_sentiment():
-    """Display market sentiment in the sidebar"""
-    info("Fetching market sentiment data")
-    percentage, sentiment, color_code = FearGreedIndicator().fetch_market_sentiment()
-
-    if percentage and sentiment and color_code:
-        info(f"Market sentiment data retrieved: {sentiment} ({percentage})")
-        info_text = "% Stocks in the market that are in an uptrend trading above their 6 month exponential moving average (EMA)."
-
-        st.markdown("### Market Sentiment")
-        st.markdown(
-            f"<div style='background-color: rgba(0,0,0,0.1); padding: 15px; border-radius: 5px;'>",
-            unsafe_allow_html=True,
-        )
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.metric(label="Sentiment:", value=percentage, help=info_text)
-
-        with col2:
-            st.markdown(
-                f"<h3 style='color: {color_code}; margin-top: 10px;'>{sentiment}</h3>",
-                unsafe_allow_html=True,
-            )
-        st.markdown("</div>", unsafe_allow_html=True)
-    else:
-        warning("Failed to retrieve market sentiment data")
-        st.warning("Market sentiment data currently unavailable")
-
-
-def get_config_inputs():
-    """Get configuration inputs from sidebar"""
-    info("Getting configuration inputs from sidebar")
-    st.markdown("### Configuration")
-    st.markdown("<hr style='margin: 5px 0px 15px 0px'>", unsafe_allow_html=True)
-
-    # Load tickers directly from CSV file
-    file_path = "tickers.csv"
-    try:
-        info(f"Loading tickers from {file_path}")
-        df = pd.read_csv(file_path)
-        company_symbols = df["ticker"].tolist() if "ticker" in df.columns else []
-        info(f"Loaded {len(company_symbols)} tickers from tickers.csv")
-        st.success(f"Loaded {len(company_symbols)} tickers from tickers.csv")
-    except Exception as e:
-        error(f"Error loading tickers.csv: {str(e)}")
-        st.error(f"Error loading tickers.csv: {str(e)}")
-        company_symbols = []
-
-    # Time range configuration
-    st.markdown("#### Analysis Period")
-    days_back = st.slider(
-        "Days of historical data",
-        365,
-        3650,
-        1825,
-        365,
-        help="Number of days to look back for historical data analysis",
-    )
-    debug(f"Selected days_back: {days_back}")
-
-    # Price type selection
-    st.markdown("#### Price Area Analysis")
-    price_option = st.radio(
-        "Select price threshold:",
-        options=[
-            ("va_high", "Current Price inside VA"),
-            ("poc_price", "Current Price below POC"),
-            ("disabled", "Disable Price Area Filter"),
-        ],
-        format_func=lambda x: x[1],
-        help="Value Area High (va_high): The highest price level within the Value Area.\n\nPoint of Control (poc_price): The price level with the highest traded volume.",
-    )
-    debug(f"Selected price option: {price_option}")
-
-    info(f"Configuration complete.")
-
-    # Return configuration with default filtering values
-    return {
-        "company_symbols": company_symbols,
-        "days_back": days_back,
-        "price_option": price_option,
-    }
-
-
-def display_metrics_dashboard(metrics):
-    """Display metrics dashboard with dataframe view"""
-    info("Displaying metrics dashboard")
-
-    # Create metrics cards at the top
-    st.markdown("<div style='margin-bottom: 20px;'>", unsafe_allow_html=True)
-    col1, col2 = st.columns(2)
-    with col1:
-        total_companies = len(metrics.get("company_labels", []))
-        info(f"Total companies in analysis: {total_companies}")
-        st.metric(
-            label="Total Companies",
-            value=f"{total_companies}",
-        )
-    with col2:
-        days = metrics.get("days_history", 1825)
-        info(f"Analysis period: {round(days/365)} years")
-        st.metric(label="Analysis Period", value=f"{round(days/365)} Years")
-    st.markdown("</div>", unsafe_allow_html=True)
-
-    df = pd.DataFrame(metrics)
-    debug(f"Dashboard dataframe shape: {df.shape}")
-    debug(f"Dashboard dataframe columns: {df.columns.tolist()}")
-
-    # Display all available columns instead of trying to filter
-    columns_to_display = df.columns.tolist()
-    debug(f"Columns available for display: {columns_to_display}")
-
-    # Prepare dataframe
-    filtered_df = df.copy()
-
-    # Transform cashflow data for better visualization if it exists
-    if "opCashflow" in filtered_df.columns:
-        debug("Transforming operating cashflow data")
-        filtered_df["opCashflow"] = filtered_df["opCashflow"].apply(
-            lambda x: replace_with_zero(x)
-        )
-
-    if "repurchaseCapStock" in filtered_df.columns:
-        debug("Transforming stock repurchase data")
-        filtered_df["repurchaseCapStock"] = filtered_df["repurchaseCapStock"].apply(
-            lambda x: replace_with_zero(x)
-        )
-        filtered_df["repurchaseCapStock"] = filtered_df["repurchaseCapStock"].apply(
-            lambda x: [-y for y in x] if isinstance(x, list) else -x
-        )
-
-    # Display dataframe with dynamic column configuration
-    info("Displaying final metrics dashboard")
-
-    # Create dynamic column config based on available columns
-    column_config = {}
-    for col in filtered_df.columns:
-        if col == "opCashflow":
-            column_config[col] = st.column_config.LineChartColumn(
-                "Operating Cashflow (4y)", y_min=-100, y_max=100
-            )
-        elif col == "repurchaseCapStock":
-            column_config[col] = st.column_config.LineChartColumn(
-                "Stock Repurchase Value (4y)", y_min=-50, y_max=50
-            )
-        elif col == "freeCashflow":
-            column_config[col] = st.column_config.LineChartColumn(
-                "Free Cashflow (4y)", y_min=-100, y_max=100
-            )
-        elif col == "totalCash":
-            column_config[col] = st.column_config.LineChartColumn(
-                "Total Cash (4y)", y_min=0, y_max=1000
-            )
-        elif col == "totalDebt":
-            column_config[col] = st.column_config.LineChartColumn(
-                "Total Debt (4y)", y_min=0, y_max=1000
-            )
-        elif col == "debtToEquity":
-            column_config[col] = st.column_config.TextColumn("Debt to Equity Ratio")
-        elif col == "currentRatio":
-            column_config[col] = st.column_config.TextColumn("Current Ratio")
-        elif col == "trailingPE":
-            column_config[col] = st.column_config.TextColumn("Trailing P/E Ratio")
-        elif col == "forwardPE":
-            column_config[col] = st.column_config.TextColumn("Forward P/E Ratio")
-        elif col == "priceToBook":
-            column_config[col] = st.column_config.TextColumn("Price to Book Ratio")
-        elif col == "dividendYield":
-            column_config[col] = st.column_config.TextColumn("Dividend Yield")
-        elif col == "beta":
-            column_config[col] = st.column_config.TextColumn("Beta")
-        elif col == "marketCap":
-            column_config[col] = st.column_config.TextColumn("Market Capitalization")
-        elif col == "recommendationMean":
-            column_config[col] = st.column_config.TextColumn("Recommendation Mean")
-        elif col == "targetHighPrice":
-            column_config[col] = st.column_config.TextColumn("Target High Price")
-        elif col == "targetLowPrice":
-            column_config[col] = st.column_config.TextColumn("Target Low Price")
-        elif col == "targetMeanPrice":
-            column_config[col] = st.column_config.TextColumn("Target Mean Price")
-        elif col == "targetMedianPrice":
-            column_config[col] = st.column_config.TextColumn("Target Median Price")
-        elif col == "currentPrice":
-            column_config[col] = st.column_config.TextColumn("Current Price")
-        elif col == "revenueGrowth":
-            column_config[col] = st.column_config.TextColumn("Revenue Growth")
-        elif col == "grossMargins":
-            column_config[col] = st.column_config.TextColumn("Gross Margins")
-        elif col == "returnOnEquity":
-            column_config[col] = st.column_config.TextColumn("Return on Equity")
-
-    st.dataframe(
-        filtered_df,
-        height=400,  # Limit height to ensure it doesn't take too much space
-        use_container_width=True,  # Use container width instead of fixed width
-        column_config=column_config,
-        hide_index=True,
-    )
-    info("Metrics dashboard displayed successfully")
-
-
 def main():
     """Main application entry point"""
     info("Main function started")
 
-    # Create the report generator at the beginning
+    # Create the report generator and dashboard manager at the beginning
     report_generator = ReportGenerator()
+    dashboard_manager = DashboardManager()
 
     # Custom CSS for better spacing and styling
     st.markdown(
@@ -278,7 +69,7 @@ def main():
     # Create a layout with title and buttons side by side
     col1, col2, col3 = st.columns([3, 1, 1])
     with col1:
-        st.title("Stock Analysis Dashboard")
+        st.title("")
     with col2:
         run_analysis = st.button(
             "Run Analysis", use_container_width=True, type="primary"
@@ -286,11 +77,10 @@ def main():
     with col3:
         generate_report = st.button("📄 Print Report", use_container_width=True)
 
-    # Sidebar for market sentiment and inputs
+    # Use the sidebar manager instead of direct sidebar operations
     info("Setting up sidebar")
-    with st.sidebar:
-        display_market_sentiment()
-        config = get_config_inputs()
+    sidebar_manager = SidebarManager()
+    config = sidebar_manager.display()
 
     company_symbols = config["company_symbols"]
     days_back = config["days_back"]
@@ -298,6 +88,25 @@ def main():
         config["price_option"][0]
         if isinstance(config["price_option"], tuple)
         else config["price_option"]
+    )
+
+    # Extract filter settings - only include the filters that exist in the config
+    filters = {}
+    filter_keys = [
+        "pe_filter",
+        "pb_filter",
+        "gm_filter",
+        "roe_filter",
+        "div_yield_filter",
+        "peg_filter",
+    ]
+
+    for key in filter_keys:
+        if key in config:
+            filters[key] = config[key]
+
+    info(
+        f"Filter settings loaded: {', '.join(f'{k}' for k, v in filters.items() if v['enabled'])}"
     )
 
     if not company_symbols:
@@ -321,20 +130,33 @@ def main():
             info("Calculating date range")
             start_date, end_date = get_date_range(days_back)
             info(f"Using date range: {start_date} to {end_date}")
-            status_text.text("Calculating date ranges...")
-            progress_bar.progress(20)
+
+            # Progress reporting function
+            def update_progress(percentage, message):
+                progress_bar.progress(percentage)
+                status_text.text(message)
+
+            update_progress(20, "Calculating date ranges...")
 
             # Initialize DataFetcher
             data_fetcher = DataFetcher()
 
-            # Fetch metrics using hello.py approach
-            info("Fetching metrics data")
-            status_text.text("Fetching metrics data...")
-            try:
-                list_metrics_all_tickers = data_fetcher.fetch_ticker_info(
-                    company_symbols
+            # Define a progress callback function
+            def update_ticker_progress(current, total, ticker):
+                # Calculate overall progress: 20% for date range + up to 45% for fetching data
+                fetch_progress = (current / total) * 45
+                overall_progress = 20 + fetch_progress
+                update_progress(
+                    int(overall_progress),
+                    f"Fetching data for {ticker} ({current}/{total})",
                 )
 
+            # Fetch metrics using hello.py approach
+            info("Fetching metrics data")
+            try:
+                list_metrics_all_tickers = data_fetcher.fetch_ticker_info(
+                    company_symbols, _progress_callback=update_ticker_progress
+                )
             except Exception as e:
                 error(f"Error fetching metrics data: {e}")
                 st.error("An error occurred while fetching metrics data.")
@@ -342,76 +164,59 @@ def main():
 
             # Debug output to see what we got
             debug(f"Fetched metrics for {len(list_metrics_all_tickers)} tickers")
-            progress_bar.progress(35)
 
-            # Convert list to DataFrame for display - handle uneven data structures
-            try:
-                # First, check if we have a list of dictionaries
-                if list_metrics_all_tickers and all(
-                    isinstance(item, dict) for item in list_metrics_all_tickers
-                ):
-                    # Create DataFrame with proper error handling
-                    filtered_companies_df = pd.DataFrame(list_metrics_all_tickers)
-                else:
-                    # Handle case where we have inconsistent data structures
-                    warning(
-                        "Inconsistent data structures in metrics data. Attempting to normalize."
-                    )
+            # Update progress
+            update_progress(65, "Processing data...")
 
-                    # Alternative approach - create an empty DataFrame and add rows carefully
-                    filtered_companies_df = pd.DataFrame()
-                    for ticker_data in list_metrics_all_tickers:
-                        if isinstance(ticker_data, dict):
-                            # Add one row at a time
-                            filtered_companies_df = pd.concat(
-                                [filtered_companies_df, pd.DataFrame([ticker_data])],
-                                ignore_index=True,
-                            )
-            except ValueError as ve:
-                error(f"Error creating DataFrame: {str(ve)}")
-                st.error(f"Error processing metrics data: {str(ve)}")
+            # Use dashboard manager to create DataFrame instead of embedding the logic here
+            filtered_companies_df, filtered_company_symbols = (
+                dashboard_manager.create_companies_table(
+                    list_metrics_all_tickers, company_symbols, filters=filters
+                )
+            )
 
-                # Create a basic DataFrame with just the company symbols to continue
-                info("Creating simplified DataFrame with just company symbols")
-                filtered_companies_df = pd.DataFrame({"company": company_symbols})
-
-            debug(f"Metrics dataframe shape: {filtered_companies_df.shape}")
-
-            # Debug output
-            debug(f"DataFrame columns: {filtered_companies_df.columns.tolist()}")
-
-            # Ensure we have company symbols
-            if "company" in filtered_companies_df.columns:
-                filtered_company_symbols = filtered_companies_df["company"].tolist()
-                debug("Using 'company' column for symbols")
-            elif "symbol" in filtered_companies_df.columns:
-                filtered_company_symbols = filtered_companies_df["symbol"].tolist()
-                debug("Using 'symbol' column for symbols")
-            else:
-                filtered_company_symbols = company_symbols
-                warning("No symbol column found, using original company symbols")
-
-            info(f"Using {len(filtered_company_symbols)} filtered company symbols")
-
-            # Initialize metrics with all the data from the DataFrame
-            # Convert DataFrame to dictionary format that matches the expected structure
-            metrics = {}
-            metrics["company_labels"] = filtered_company_symbols
-            metrics["days_history"] = days_back
+            # Create metrics dictionary from filtered_companies_df
+            metrics = {
+                "company_labels": filtered_company_symbols,
+                "days_history": days_back,
+            }
 
             # Add all columns from filtered_companies_df to metrics
             for column in filtered_companies_df.columns:
-                if (
-                    column != "company" and column != "symbol"
-                ):  # Avoid duplicating these
+                if column not in ["company", "symbol"]:  # Avoid duplicating these
                     metrics[column] = filtered_companies_df[column].tolist()
+
+            # Further filter companies based on price area analysis if needed
+            if price_option != "disabled":
+                status_text.text("Filtering by price area analysis...")
+                filtered_company_symbols = dashboard_manager.filter_by_price_area(
+                    metrics, filtered_company_symbols, price_option
+                )
+
+                # Update the filtered dataframe to match the new filtered symbols
+                filtered_companies_df = filtered_companies_df[
+                    filtered_companies_df["symbol"].isin(filtered_company_symbols)
+                ]
+
+                # Update metrics with the filtered data
+                metrics["company_labels"] = filtered_company_symbols
+
+                # Update all other metrics lists to match the filtered data
+                for column in filtered_companies_df.columns:
+                    if column not in ["company", "symbol"]:
+                        metrics[column] = filtered_companies_df[column].tolist()
+
+                status_text.text(
+                    f"Found {len(filtered_company_symbols)} companies matching price area filter..."
+                )
+
+            debug(f"Metrics dataframe shape: {filtered_companies_df.shape}")
+            debug(f"DataFrame columns: {filtered_companies_df.columns.tolist()}")
+            info(f"Using {len(filtered_company_symbols)} filtered company symbols")
 
             # Debug output
             debug(f"Combined metrics keys: {list(metrics.keys())}")
-            progress_bar.progress(65)
-
-            status_text.text("Analysis complete!")
-            progress_bar.progress(100)
+            update_progress(100, "Analysis complete!")
             info("Core analysis completed successfully")
 
             # Store the metrics in session state for the report generation
@@ -423,14 +228,13 @@ def main():
 
             with tab1:
                 st.markdown("## Analysis Results")
-                display_metrics_dashboard(metrics)
+                dashboard_manager.display_metrics_dashboard(metrics, filters=filters)
 
             with tab2:
                 # Display detailed candle charts
                 st.markdown("## Stock Charts")
                 info("Starting candle chart generation")
 
-                # Call the plotting function with debug output
                 try:
                     info("Generating candle charts")
 
@@ -453,12 +257,9 @@ def main():
                         chart_generator, sentiment_analyzer
                     )
 
-                    # Add a container for the charts with limited width
+                    # Display charts in container with consistent styling
                     chart_container = st.container()
                     with chart_container:
-                        # Use the properly initialized chart_generator instance
-                        # We'll need to modify the ChartGenerator class to respect width settings
-                        # For now, we'll wrap the output in a container
                         st.markdown(
                             "<div style='max-width: 50%; margin: 0 auto;'>",
                             unsafe_allow_html=True,
@@ -473,20 +274,22 @@ def main():
 
                     info("Candle charts generated successfully")
                 except Exception as chart_error:
-                    error_msg = f"Error generating charts: {str(chart_error)}"
-                    error(error_msg)
+                    error(f"Error generating charts: {str(chart_error)}")
                     error(traceback.format_exc())
-                    st.error(error_msg)
+                    st.error(f"Error generating charts: {str(chart_error)}")
 
         except Exception as e:
-            error_msg = f"An error occurred: {str(e)}"
-            error(error_msg)
+            error(f"An error occurred: {str(e)}")
             error(traceback.format_exc())
-            st.error(error_msg)
+            st.error(f"An error occurred: {str(e)}")
 
             # Show more detailed error information in a collapsible section
             with st.expander("Error Details"):
                 st.code(traceback.format_exc())
+
+            # Reset session state
+            if "analysis_complete" in st.session_state:
+                st.session_state["analysis_complete"] = False
 
     # Handle report generation
     if generate_report:

@@ -858,6 +858,16 @@ class CandlestickCharts(ChartBase):
         ticker = data_fetcher.fetch_ticker_data(ticker_symbol)
         data = data_fetcher.fetch_historical_data(ticker_symbol, start_date, end_date)
 
+        # Add defensive check for ticker and ticker.info
+        if ticker is None:
+            warning(f"Ticker is None for symbol {ticker_symbol}")
+            return None
+
+        # Get website URL with fallback
+        website = "#"
+        if hasattr(ticker, "info") and ticker.info is not None:
+            website = ticker.info.get("website", "#")
+
         # Get dashboard metrics
         info(f"Retrieving dashboard metrics for {ticker_symbol}")
         dashboard_metrics = FinancialMetrics().get_dashboard_metrics(
