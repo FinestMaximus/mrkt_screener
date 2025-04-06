@@ -45,13 +45,20 @@ def main():
     }
     .stTabs [data-baseweb="tab-list"] {
         gap: 2rem;
+        position: sticky !important;
+        top: 0;
+        background-color: #262730;
+        z-index: 999;
+        padding: 4px 0px;
+        margin-top: -15px;
+        box-shadow: 0 3px 10px rgba(0,0,0,0.2);
     }
     .stTabs [data-baseweb="tab"] {
         font-size: 1rem;
         font-weight: 500;
     }
     .stTabs [aria-selected="true"] {
-        background-color: rgba(0, 0, 0, 0.05);
+        background-color: rgba(255, 255, 255, 0.2);
         border-radius: 4px 4px 0 0;
     }
     .card {
@@ -61,20 +68,19 @@ def main():
         margin-bottom: 1rem;
         box-shadow: 0 2px 5px rgba(0,0,0,0.05);
     }
+    .stTabs {
+        padding-top: 15px;
+    }
     </style>
     """,
         unsafe_allow_html=True,
     )
 
-    # Create a layout with title and buttons side by side
-    col1, col2, col3 = st.columns([3, 1, 1])
+    # Create a layout with title and report button side by side
+    col1, col2 = st.columns([4, 1])
     with col1:
         st.title("")
     with col2:
-        run_analysis = st.button(
-            "Run Analysis", use_container_width=True, type="primary"
-        )
-    with col3:
         generate_report = st.button("📄 Print Report", use_container_width=True)
 
     # Use the sidebar manager instead of direct sidebar operations
@@ -117,9 +123,13 @@ def main():
     # Show progress
     progress_container = st.container()
 
-    if run_analysis:
+    # Run analysis automatically when needed
+    if st.session_state.should_run_analysis:
         info("Starting analysis with the following configuration:")
         try:
+            # Reset the flag
+            st.session_state.should_run_analysis = False
+
             # Progress container
             with progress_container:
                 st.markdown("## Analysis Progress")
@@ -376,7 +386,9 @@ def main():
                         "Failed to generate report. Please check logs for details."
                     )
         else:
-            st.warning("Please run the analysis first before generating a report.")
+            st.warning(
+                "Please wait for the analysis to complete before generating a report."
+            )
 
 
 def update_metrics_after_filtering(metrics, filtered_company_symbols):

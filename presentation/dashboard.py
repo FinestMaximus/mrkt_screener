@@ -107,7 +107,7 @@ class DashboardManager:
             "returnOnEquity",
             "currentPrice",
             "dividendYield",
-            "trailingPegRatio",
+            "forwardPegRatio",
         ]
 
         for col in numeric_columns:
@@ -154,7 +154,7 @@ class DashboardManager:
             info(f"PEG filter enabled with min={peg_min}, max={peg_max}")
 
             # Check if PEG data exists at all
-            peg_columns = ["trailingPegRatio", "pegRatio"]
+            peg_columns = ["forwardPegRatio", "pegRatio"]
             peg_col_exists = False
             for col in peg_columns:
                 if col in df.columns:
@@ -340,7 +340,7 @@ class DashboardManager:
             "grossMargins": "Gross Margins",
             "returnOnEquity": "Return on Equity",
             "dividendYield": "Dividend Yield",
-            "trailingPegRatio": "PEG Ratio",
+            "forwardPegRatio": "PEG Ratio",
             "marketCap": "Market Capitalization",
             "currentPrice": "Current Price",
         }
@@ -476,8 +476,8 @@ class DashboardManager:
                         for value in [current_price, poc_price, va_high, va_low]
                     ):
                         if price_option == "va_high":
-                            # Check if current price is inside Value Area
-                            if va_low <= current_price <= va_high:
+                            # Check if current price is below VA High (not strictly inside Value Area)
+                            if current_price <= va_high:
                                 filtered_symbols.append(symbol)
                         elif price_option == "poc_price":
                             # Check if current price is below POC

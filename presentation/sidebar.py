@@ -19,11 +19,75 @@ class SidebarManager:
             "growth": "#8E24AA",  # Purple
         }
 
+        # Initialize session state for tracking filter changes
+        if "previous_config" not in st.session_state:
+            st.session_state.previous_config = {}
+
+        if "should_run_analysis" not in st.session_state:
+            st.session_state.should_run_analysis = True  # True on first load
+
     def display(self):
         """Display all sidebar elements and return configuration"""
         with st.sidebar:
             self.display_market_sentiment()
-            return self.get_config_inputs()
+            config = self.get_config_inputs()
+
+            # Check if config has changed compared to previous run
+            if self._has_config_changed(config):
+                st.session_state.should_run_analysis = True
+                st.session_state.previous_config = config.copy()
+                debug("Filter configuration changed, triggering new analysis")
+
+            return config
+
+    def _has_config_changed(self, current_config):
+        """Check if the current configuration differs from the previous one"""
+        # Compare current config with stored previous config
+        previous_config = st.session_state.previous_config
+
+        # If no previous config exists, we should run analysis
+        if not previous_config:
+            return True
+
+        # Compare relevant configuration options
+        key_configs = [
+            "days_back",
+            "price_option",
+        ]
+
+        # Check if basic settings have changed
+        for key in key_configs:
+            if key in current_config and key in previous_config:
+                if current_config[key] != previous_config[key]:
+                    debug(f"Config change detected in {key}")
+                    return True
+
+        # Check filter settings
+        filter_keys = [
+            "pe_filter",
+            "pb_filter",
+            "gm_filter",
+            "roe_filter",
+            "div_yield_filter",
+            "peg_filter",
+        ]
+
+        for key in filter_keys:
+            if key in current_config and key in previous_config:
+                current_filter = current_config[key]
+                previous_filter = previous_config[key]
+
+                # Compare each filter property
+                if (
+                    current_filter["enabled"] != previous_filter["enabled"]
+                    or current_filter["min"] != previous_filter["min"]
+                    or current_filter["max"] != previous_filter["max"]
+                ):
+                    debug(f"Filter change detected in {key}")
+                    return True
+
+        # No changes detected
+        return False
 
     def display_market_sentiment(self):
         """Display market sentiment in the sidebar"""
@@ -181,8 +245,8 @@ class SidebarManager:
 
         def create_enhanced_filter(
             label,
-            min_default,
-            max_default,
+            min_default=0,
+            max_default=100,
             is_percent=False,
             enabled_default=True,
             help_text="",
@@ -191,10 +255,24 @@ class SidebarManager:
             max_value=None,
             single_value=False,
             unit="",
+            step=1,
+            key=None,
         ):
-            """Create an enhanced filter with better UX"""
+            """Create an enhanced filter with better UX and consistent numeric types"""
             # Create the filter container
             filter_container = st.container()
+
+            # Convert all numeric values to the same type (float)
+            min_default = float(min_default)
+            if max_default is not None:
+                max_default = float(max_default)
+            if max_value is not None:
+                max_value = float(max_value)
+            step = float(step)
+
+            # If max_value is not specified, use max_default as the max_value
+            if max_value is None:
+                max_value = max_default * 2 if max_default > 0 else 100.0
 
             with filter_container:
                 # Enable/disable checkbox
@@ -257,7 +335,8 @@ class SidebarManager:
             pe_filter = create_enhanced_filter(
                 "P/E Ratio",
                 0.0,
-                15.0,
+                20.0,
+                is_percent=True,
                 help_text="Price-to-Earnings (P/E) ratio - lower values may indicate undervaluation",
                 min_help="Minimum P/E ratio (0 for no minimum)",
                 max_help="Maximum P/E ratio (value investors typically prefer P/E < 15)",
@@ -267,7 +346,7 @@ class SidebarManager:
             pb_filter = create_enhanced_filter(
                 "Price to Book",
                 0.0,
-                1.5,
+                2,
                 help_text="Price-to-Book (P/B) ratio - lower values may indicate undervaluation",
                 min_help="Minimum Price to Book ratio (0 for no minimum)",
                 max_help="Maximum Price to Book ratio (value investors typically prefer P/B < 1.5)",
@@ -304,11 +383,11 @@ class SidebarManager:
             # Dividend Yield filter
             div_yield_filter = create_enhanced_filter(
                 "Dividend Yield",
-                2.0,
+                0.5,
                 10.0,
                 is_percent=True,
                 enabled_default=False,
-                max_value=20.0,
+                max_value=50.0,
                 help_text="Dividend Yield percentage - income from dividends",
                 min_help="Minimum Dividend Yield percentage",
                 max_help="Maximum Dividend Yield percentage (very high yields may be unsustainable)",
@@ -320,9 +399,9 @@ class SidebarManager:
             peg_filter = create_enhanced_filter(
                 "PEG Ratio",
                 0.0,
-                1.0,
+                5.0,
                 enabled_default=False,
-                max_value=5.0,
+                max_value=20.0,
                 help_text="Price/Earnings to Growth ratio - lower values may indicate growth at reasonable price",
                 min_help="Minimum PEG Ratio",
                 max_help="Maximum PEG Ratio (value < 1 may indicate undervaluation)",

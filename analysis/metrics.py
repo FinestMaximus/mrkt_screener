@@ -83,13 +83,14 @@ class FinancialMetrics:
                 )[index]
 
                 # Calculate PEG if possible, otherwise None
+                # PEG ratio: 0-1 indicates undervalued stock, >1 potentially overvalued
                 peg = None
-                if "trailingPE" in metrics and "revenueGrowth" in metrics:
+                if "forwardPE" in metrics and "revenueGrowth" in metrics:
                     if metrics["revenueGrowth"][index] not in (None, 0):
-                        peg = (
-                            metrics["trailingPE"][index]
-                            / metrics["revenueGrowth"][index]
-                        )
+                        # Use absolute value of growth to handle negative growth scenarios
+                        growth_value = abs(metrics["revenueGrowth"][index])
+                        if growth_value > 0:  # Avoid division by zero
+                            peg = metrics["forwardPE"][index] / growth_value
 
                 gm = metrics.get(
                     "grossMargins", [None] * len(metrics["company_labels"])

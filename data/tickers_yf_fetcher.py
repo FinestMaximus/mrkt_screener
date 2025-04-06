@@ -71,7 +71,7 @@ class DataFetcher:
             "website",
             "operatingMargins",
             "financialCurrency",
-            "trailingPegRatio",
+            "forwardPegRatio",
             "fiftyTwoWeekHigh",
             "priceToSalesTrailing12Months",
             "fiftyDayAverage",
@@ -259,7 +259,7 @@ class DataFetcher:
                     "recommendationKey",
                     "averageAnalystRating",
                     "trailingAnnualDividendYield",
-                    "trailingPegRatio",
+                    "forwardPegRatio",
                 ]
 
                 # Populate metrics with available data
@@ -389,7 +389,7 @@ class DataFetcher:
             "revenueGrowth",
             "grossMargins",
             "returnOnEquity",
-            "trailingPegRatio",
+            "forwardPegRatio",
         ]
 
         total_companies = len(tickers)

@@ -196,7 +196,7 @@ class CandlestickCharts(ChartBase):
         return fig
 
     def _display_market_profile_chart(
-        self, ticker_symbol, data, va_high, va_low, poc_price
+        self, ticker_symbol, data, va_high, va_low, poc_price, option=None
     ):
         """Display market profile chart with improved layout and styling"""
         # Get price-volume data for volume profile
@@ -233,6 +233,62 @@ class CandlestickCharts(ChartBase):
                         buy_volume_by_price[j] += volume_contribution
                     else:
                         sell_volume_by_price[j] += volume_contribution
+
+        # Get current price from ticker_symbol
+        current_price = None
+
+        # Try to fetch a fresh ticker to get the most updated price
+        ticker = yf.Ticker(ticker_symbol)
+
+        # Try multiple fields for getting current price with fallbacks
+        if hasattr(ticker, "info"):
+            # First try the standard currentPrice field
+            if (
+                "currentPrice" in ticker.info
+                and ticker.info["currentPrice"] is not None
+            ):
+                current_price = ticker.info["currentPrice"]
+            # Then try regularMarketPrice as a fallback
+            elif (
+                "regularMarketPrice" in ticker.info
+                and ticker.info["regularMarketPrice"] is not None
+            ):
+                current_price = ticker.info["regularMarketPrice"]
+            # Then try the last closing price as a fallback
+            elif (
+                "previousClose" in ticker.info
+                and ticker.info["previousClose"] is not None
+            ):
+                current_price = ticker.info["previousClose"]
+
+        # If all else fails, try to get the most recent closing price from our data
+        if current_price is None and not data.empty:
+            current_price = data["Close"].iloc[-1]
+
+        # Ensure we have a numeric price
+        if current_price is not None:
+            try:
+                current_price = float(current_price)
+            except (ValueError, TypeError):
+                current_price = None
+
+        # Check if option is provided before trying to access it
+        if option and len(option) > 0:
+            # Check if the price is within the value area based on the selected option
+            if option[0] == "va_high":
+                # Filter OUT stocks where price is ABOVE VA High
+                if current_price > va_high:
+                    info(
+                        f"{ticker_symbol} - current price is above value area high: {current_price} (VA High: {va_high})"
+                    )
+                    return 0
+            elif option[0] == "poc_price":
+                # Filter OUT stocks where price is NOT below POC
+                if current_price >= poc_price:
+                    info(
+                        f"{ticker_symbol} - price is not below POC: {current_price} (POC: {poc_price})"
+                    )
+                    return 0
 
         # Set a clean, modern style for better visibility
         plt.style.use("dark_background")
@@ -288,44 +344,6 @@ class CandlestickCharts(ChartBase):
             show_nontrading=False,
         )
 
-        # Get current price from ticker_symbol
-        current_price = None
-
-        # Try to fetch a fresh ticker to get the most updated price
-        ticker = yf.Ticker(ticker_symbol)
-
-        # Try multiple fields for getting current price with fallbacks
-        if hasattr(ticker, "info"):
-            # First try the standard currentPrice field
-            if (
-                "currentPrice" in ticker.info
-                and ticker.info["currentPrice"] is not None
-            ):
-                current_price = ticker.info["currentPrice"]
-            # Then try regularMarketPrice as a fallback
-            elif (
-                "regularMarketPrice" in ticker.info
-                and ticker.info["regularMarketPrice"] is not None
-            ):
-                current_price = ticker.info["regularMarketPrice"]
-            # Then try the last closing price as a fallback
-            elif (
-                "previousClose" in ticker.info
-                and ticker.info["previousClose"] is not None
-            ):
-                current_price = ticker.info["previousClose"]
-
-        # If all else fails, try to get the most recent closing price from our data
-        if current_price is None and not data.empty:
-            current_price = data["Close"].iloc[-1]
-
-        # Ensure we have a numeric price
-        if current_price is not None:
-            try:
-                current_price = float(current_price)
-            except (ValueError, TypeError):
-                current_price = None
-
         # Add prominent grid lines for better price tracking
         ax1.grid(
             which="major",
@@ -368,95 +386,6 @@ class CandlestickCharts(ChartBase):
                 linewidth=2.5,
                 label="Current Price",
                 zorder=10,  # Ensure it's drawn on top of other lines
-            )
-
-        # Calculate appropriate price range for y-axis ticks
-        price_min = data["Low"].min()
-        price_max = data["High"].max()
-        price_range = price_max - price_min
-
-        # Create nice tick spacing based on price range
-        if price_range > 200:
-            tick_spacing = 20.0
-        elif price_range > 100:
-            tick_spacing = 10.0
-        elif price_range > 50:
-            tick_spacing = 5.0
-        elif price_range > 20:
-            tick_spacing = 2.0
-        elif price_range > 10:
-            tick_spacing = 1.0
-        elif price_range > 5:
-            tick_spacing = 0.5
-        else:
-            tick_spacing = 0.2
-
-        # Create custom price ticks
-        start_tick = np.floor(price_min / tick_spacing) * tick_spacing
-        end_tick = np.ceil(price_max / tick_spacing) * tick_spacing
-        price_ticks = np.arange(start_tick, end_tick + tick_spacing, tick_spacing)
-
-        # Apply the custom ticks to the y-axis
-        ax1.set_yticks(price_ticks)
-
-        # Format the ticks as currency with appropriate decimals - LARGER FONT
-        if tick_spacing >= 1:
-            ax1.set_yticklabels(
-                ["${:.0f}".format(p) for p in price_ticks],
-                fontsize=12,
-                fontweight="bold",
-            )
-        else:
-            ax1.set_yticklabels(
-                ["${:.2f}".format(p) for p in price_ticks],
-                fontsize=12,
-                fontweight="bold",
-            )
-
-        # Make the y-axis price labels stand out more
-        ax1.tick_params(axis="y", colors="white", labelsize=12, width=1.5, length=6)
-        ax1.tick_params(axis="x", colors="white", labelsize=10, width=1.5, length=6)
-        ax_volume.tick_params(axis="both", colors="white", labelsize=10)
-
-        # Add price annotations with better positioning and no overlap
-        label_padding = price_range * 0.02  # 2% of price range for padding
-
-        # Define a function for consistent price annotations
-        def add_price_annotation(ax, label, price, color, offset_y=0):
-            ax.annotate(
-                f"{label}: ${price:.2f}",
-                xy=(data.index[-1], price),
-                xytext=(5, offset_y),
-                textcoords="offset points",
-                ha="left",
-                va="center",
-                color=color,
-                fontweight="bold",
-                fontsize=11,  # Larger font size for annotations
-                bbox=dict(
-                    facecolor="#333333",
-                    alpha=0.9,
-                    edgecolor="none",
-                    pad=2,
-                    boxstyle="round,pad=0.5",
-                ),
-                zorder=20,
-            )
-
-        # POC annotation with improved styling
-        add_price_annotation(ax1, "POC", poc_price, "#ff5050")
-
-        # VA High annotation
-        add_price_annotation(ax1, "VA High", va_high, "#5050ff", offset_y=label_padding)
-
-        # VA Low annotation
-        add_price_annotation(ax1, "VA Low", va_low, "#5050ff", offset_y=-label_padding)
-
-        # Current price annotation with improved placement
-        if current_price is not None:
-            offset = 7 if current_price > poc_price else -7
-            add_price_annotation(
-                ax1, "Current", current_price, "#ffcf40", offset_y=offset
             )
 
         # Plot the buy volume profile histogram horizontally on ax2
@@ -526,6 +455,61 @@ class CandlestickCharts(ChartBase):
             edgecolor="#888888",
         )
 
+        # Force the x-axis to interpret the tick values as dates
+        ax1.xaxis_date()
+        ax_volume.xaxis_date()
+
+        # Ensure that the x-axis for both the main chart and volume sub-chart are formatted correctly with dates
+        date_format = mdates.DateFormatter("%b '%y")  # e.g., Jan '23
+        ax1.xaxis.set_major_formatter(date_format)
+        ax_volume.xaxis.set_major_formatter(date_format)
+        fig.autofmt_xdate()  # Automatically format date labels (rotates for better readability)
+
+        plt.tight_layout()
+
+        # Further improve the y-axis price display
+        # Add currency symbol to y-axis label
+        ax1.set_ylabel(
+            "Price ($)", fontsize=14, fontweight="bold", color="white", labelpad=10
+        )
+
+        # Make the grid lines more prominent
+        ax1.grid(
+            which="major",
+            axis="y",
+            linestyle="-",
+            linewidth=0.7,  # Slightly thicker
+            color="#aaaaaa",  # Lighter color for better visibility
+            alpha=0.8,  # More visible
+        )
+
+        # Add subtle minor grid lines for more precise price reading
+        ax1.grid(
+            which="minor",
+            axis="y",
+            linestyle=":",
+            linewidth=0.3,
+            color="#666666",
+            alpha=0.5,
+        )
+        ax1.minorticks_on()
+
+        # Improve date axis display
+        ax_volume.set_xlabel(
+            "Date", fontsize=14, fontweight="bold", color="white", labelpad=10
+        )
+
+        # Add background shading to make price bands more visible
+        for i in range(0, len(price_levels) - 1, 2):
+            if i < len(price_levels) - 1:
+                ax1.axhspan(
+                    price_levels[i],
+                    price_levels[i + 1],
+                    color="#333333",
+                    alpha=0.2,
+                    zorder=-10,
+                )
+
         # Update legend on main chart with correct styling
         if current_price is not None:
             # Clear any previous legend
@@ -580,271 +564,609 @@ class CandlestickCharts(ChartBase):
                 handles=legend_elements,
                 loc="upper left",
                 fontsize="medium",
-                framealpha=0.9,
+                framealpha=0.7,
                 facecolor="#333333",
-                edgecolor="#888888",
+                edgecolor="#555555",
             )
 
-        # Add buy zone annotation to the chart with improved styling
-        if buy_focus_regions:
-            best_buy_level = price_levels[buy_focus_regions[0]]
-            ax1.axhline(
-                y=best_buy_level,
-                color="#00ff00",  # Pure lime for high visibility
-                linestyle="dotted",
-                linewidth=2,
-                label="Buy Zone",
-            )
-            add_price_annotation(
-                ax1,
-                "Buy Zone",
-                best_buy_level,
-                "#00ff00",
-                offset_y=-label_padding * 1.5,
-            )
-
-        # Add title to chart axes for clarity - more prominent styling
-        ax1.set_title(
-            "Price History", fontsize=16, fontweight="bold", color="white", pad=10
-        )
-        ax_volume.set_title(
-            "Volume", fontsize=14, fontweight="bold", color="white", pad=10
-        )
-        ax2.set_title(
-            "Vol Profile", fontsize=14, fontweight="bold", color="white", pad=10
-        )
-
-        # Add overall chart title
-        fig.suptitle(
-            f"{ticker.info.get('shortName', ticker_symbol)} ({ticker_symbol})",
-            fontsize=18,
-            fontweight="bold",
-            color="white",
-            y=0.98,
-        )
-
-        # Improve x-axis date formatting - more readable dates
-        date_format = mdates.DateFormatter(
-            "%b '%y"
-        )  # Format as 'Jan '23 - more compact
-        ax1.xaxis.set_major_formatter(date_format)
-        ax_volume.xaxis.set_major_formatter(date_format)
-
-        # Set appropriate number of ticks based on data length
-        data_span = (data.index[-1] - data.index[0]).days
-        if data_span > 1095:  # > 3 years
-            interval = 6
-        elif data_span > 730:  # > 2 years
-            interval = 4
-        elif data_span > 365:  # > 1 year
-            interval = 3
-        elif data_span > 180:  # > 6 months
-            interval = 2
-        else:
-            interval = 1
-
-        ax1.xaxis.set_major_locator(mdates.MonthLocator(interval=interval))
-
-        # Make x-axis date labels larger and more readable
-        for label in ax_volume.get_xticklabels():
-            label.set_fontsize(12)
-            label.set_fontweight("bold")
-
-        # Rotate x-axis date labels for better readability
-        plt.setp(ax_volume.xaxis.get_majorticklabels(), rotation=45, ha="right")
-
-        # Add ticker logo and symbol in bottom right corner
-        try:
-            # Create a new axes for the logo in the bottom right
-            logo_ax = fig.add_axes([0.85, 0.02, 0.12, 0.12], frameon=False)
-            logo_ax.axis("off")
-
-            # Get company info
-            short_name = ticker.info.get("shortName", ticker_symbol)
-
-            # Try to get logo URL
-            logo_url = None
-            if "logo_url" in ticker.info and ticker.info["logo_url"]:
-                logo_url = ticker.info["logo_url"]
-
-            if logo_url:
-                try:
-                    import requests
-                    from PIL import Image
-                    from io import BytesIO
-
-                    response = requests.get(logo_url, timeout=2)
-                    img = Image.open(BytesIO(response.content))
-                    logo_ax.imshow(img)
-                except Exception as e:
-                    # If logo loading fails, just show text
-                    debug(f"Error loading logo: {e}")
-                    logo_ax.text(
-                        0.5,
-                        0.5,
-                        f"{ticker_symbol}",
-                        ha="center",
-                        va="center",
-                        fontsize=18,
-                        fontweight="bold",
-                        color="white",
-                    )
-            else:
-                # No logo URL, just show text
-                logo_ax.text(
-                    0.5,
-                    0.5,
-                    f"{ticker_symbol}",
-                    ha="center",
-                    va="center",
-                    fontsize=18,
-                    fontweight="bold",
-                    color="white",
-                )
-
-            # Add company name text below the chart
-            fig.text(
-                0.85,
-                0.01,
-                short_name,
-                ha="center",
-                fontsize=12,
-                fontweight="bold",
-                color="white",
-            )
-
-        except Exception as e:
-            debug(f"Error adding logo/symbol: {e}")
-
-        # Ensure the price labels don't get cut off
-        plt.subplots_adjust(left=0.12, right=0.95, bottom=0.14, top=0.92)
-
-        # Display the chart with appropriate sizing
-        st.pyplot(fig)
-
-        # Add a small explanation of the chart elements below the chart in a nicer format
-        st.markdown(
-            """
-        <style>
-        .explanation-box {
-            background-color: rgba(70, 70, 70, 0.2);
-            border-radius: 5px;
-            padding: 10px;
-            margin-top: 10px;
-        }
-        </style>
-        """,
-            unsafe_allow_html=True,
-        )
-        with st.expander("📊 Chart Guide", expanded=False):
-            st.markdown(
-                """
-            <div class="explanation-box">
-            <ul>
-                <li><b style="color:#ff5050">POC (Point of Control)</b>: Price level with the highest trading volume</li>
-                <li><b style="color:#5050ff">VA (Value Area)</b>: Range between VA High and VA Low where 70% of trading occurred</li>
-                <li><b style="color:#00ff00">Buy Zone</b>: Price level with significant buying volume below POC - potential support</li>
-                <li><b style="color:#ffcf40">Current Price</b>: The latest price of the stock</li>
-                <li><b>Green/Red Bars</b>: Volume profile showing buy vs sell volume at each price level</li>
-            </ul>
-            </div>
-            """,
-                unsafe_allow_html=True,
-            )
-
-        # Business summary in an expander to save space
-        if "longBusinessSummary" in ticker.info:
-            with st.expander("Company Overview", expanded=False):
-                summary_text = ticker.info["longBusinessSummary"]
-                formatted_summary = self._format_business_summary(summary_text)
-                st.markdown(formatted_summary)
+        return fig
 
     def _display_ticker_metrics_dashboard(
         self, ticker_symbol, ticker, eps, pe, ps, pb, peg, gm
     ):
-        """Display ticker metrics in a dashboard layout with improved spacing"""
-        # Use a container with border styling for the metrics dashboard
+        """Display ticker metrics in a dashboard layout with improved aesthetics and usability"""
+        # Use a container with enhanced styling for the metrics dashboard
         st.markdown(
             """
-        <style>
-        .metrics-container {
-            padding: 10px;
-            border-radius: 5px;
-            margin-bottom: 20px;
-            background-color: rgba(240, 242, 246, 0.1);
-        }
-        </style>
-        """,
+            <style>
+            .metrics-container {
+                padding: 15px;
+                border-radius: 10px;
+                margin-bottom: 20px;
+                background-color: rgba(30, 30, 40, 0.6);
+                border: 1px solid rgba(100, 100, 150, 0.2);
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            }
+            .metric-card {
+                background-color: rgba(40, 40, 60, 0.7);
+                border-radius: 8px;
+                padding: 10px;
+                text-align: center;
+                height: 100%;
+                transition: transform 0.2s, box-shadow 0.2s;
+                border: 1px solid rgba(100, 100, 150, 0.2);
+            }
+            .metric-card:hover {
+                transform: translateY(-3px);
+                box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
+            }
+            .metric-label {
+                font-size: 0.85rem;
+                color: rgba(200, 200, 220, 0.9);
+                margin-bottom: 5px;
+                font-weight: 500;
+            }
+            .metric-value {
+                font-size: 1.4rem;
+                font-weight: 600;
+                margin-bottom: 0;
+            }
+            .metric-value.positive {
+                color: rgba(100, 255, 100, 0.9);
+            }
+            .metric-value.negative {
+                color: rgba(255, 100, 100, 0.9);
+            }
+            .metric-value.neutral {
+                color: rgba(220, 220, 255, 0.9);
+            }
+            .metric-desc {
+                font-size: 0.75rem;
+                color: rgba(180, 180, 200, 0.8);
+                margin-top: 5px;
+                font-style: italic;
+            }
+            .metric-container {
+                display: flex;
+                flex-direction: column;
+                height: 100%;
+            }
+            </style>
+            """,
             unsafe_allow_html=True,
         )
+
+        # Custom function to display metrics with enhanced styling
+        def styled_metric(
+            label,
+            value,
+            tooltip="",
+            formatter=None,
+            positive_good=True,
+            prefix="",
+            suffix="",
+        ):
+            # Determine if we should show positive/negative styling
+            style_class = "neutral"
+            if value is not None and isinstance(value, (int, float)):
+                if positive_good:
+                    style_class = (
+                        "positive"
+                        if value > 0
+                        else "negative" if value < 0 else "neutral"
+                    )
+                else:
+                    style_class = (
+                        "negative"
+                        if value > 0
+                        else "positive" if value < 0 else "neutral"
+                    )
+
+            # Format the value
+            if value is None:
+                formatted_value = "N/A"
+            elif formatter == "percent":
+                formatted_value = f"{prefix}{value:.2f}{suffix}%"
+            elif formatter == "currency":
+                formatted_value = f"{prefix}${value:,.2f}{suffix}"
+            elif formatter == "ratio":
+                formatted_value = f"{prefix}{value:.2f}{suffix}"
+            elif formatter == "integer":
+                formatted_value = f"{prefix}{int(value):,}{suffix}"
+            elif formatter == "billions":
+                formatted_value = f"{prefix}${value/1e9:.2f}B{suffix}"
+            elif formatter == "millions":
+                formatted_value = f"{prefix}${value/1e6:.2f}M{suffix}"
+            else:
+                formatted_value = f"{prefix}{value}{suffix}"
+
+            html = f"""
+            <div class="metric-container">
+                <div class="metric-card" title="{tooltip}">
+                    <div class="metric-label">{label}</div>
+                    <div class="metric-value {style_class}">{formatted_value}</div>
+                    <div class="metric-desc">{tooltip}</div>
+                </div>
+            </div>
+            """
+            return html
 
         with st.container():
             st.markdown('<div class="metrics-container">', unsafe_allow_html=True)
 
-            # Use 4 columns instead of 7 to give more space to each metric
+            # Organize metrics into categories with 3 rows of 4 columns
+            # First row: Valuation metrics
             col1, col2, col3, col4 = st.columns(4)
 
-            # First row of metrics
             with col1:
                 if peg:
-                    st.metric(label="PEG", value=f"{round(peg,2)}")
+                    tooltip = "Price/Earnings to Growth - Lower values (<1) typically indicate better value"
+                    st.markdown(
+                        styled_metric(
+                            "PEG Ratio", peg, tooltip, "ratio", positive_good=False
+                        ),
+                        unsafe_allow_html=True,
+                    )
                 else:
-                    st.metric(label="PEG", value="-")
-
-                if eps:
-                    st.metric(label="EPS", value=f"{round(eps,2)}")
-                else:
-                    st.metric(label="EPS", value="-")
+                    st.markdown(
+                        styled_metric("PEG Ratio", None, "Price/Earnings to Growth"),
+                        unsafe_allow_html=True,
+                    )
 
             with col2:
                 if pe:
-                    st.metric(label="P/E", value=f"{round(pe,2)}")
+                    tooltip = "Price to Earnings - How much investors pay per dollar of earnings"
+                    st.markdown(
+                        styled_metric(
+                            "P/E Ratio", pe, tooltip, "ratio", positive_good=False
+                        ),
+                        unsafe_allow_html=True,
+                    )
                 else:
-                    st.metric(label="P/E", value="-")
-
-                if ps:
-                    st.metric(label="P/S", value=f"{round(ps,2)}")
-                else:
-                    st.metric(label="P/S", value="-")
+                    st.markdown(
+                        styled_metric("P/E Ratio", None, "Price to Earnings"),
+                        unsafe_allow_html=True,
+                    )
 
             with col3:
                 if pb:
-                    st.metric(label="P/B", value=f"{round(pb,2)}")
-                else:
-                    st.metric(label="P/B", value="-")
-
-                if gm is not None:
-                    st.metric(label="Gross Margin", value=f"{round(gm*100,1)}%")
-                else:
-                    st.metric(label="Gross Margin", value="-")
-
-            with col4:
-                if "marketCap" in ticker.info and "financialCurrency" in ticker.info:
-                    market_cap = ticker.info["marketCap"]
-                    currency = ticker.info["financialCurrency"]
-                    if market_cap >= 1e9:
-                        market_cap_display = f"{market_cap / 1e9:.2f} B"
-                    elif market_cap >= 1e6:
-                        market_cap_display = f"{market_cap / 1e6:.2f} M"
-                    else:
-                        market_cap_display = f"{market_cap:.2f}"
-                    st.metric(
-                        label=f"Market Cap ({currency})",
-                        value=market_cap_display,
+                    tooltip = "Price to Book - Stock price relative to book value"
+                    st.markdown(
+                        styled_metric(
+                            "P/B Ratio", pb, tooltip, "ratio", positive_good=False
+                        ),
+                        unsafe_allow_html=True,
                     )
                 else:
-                    st.metric(label="Market Cap", value="-")
+                    st.markdown(
+                        styled_metric("P/B Ratio", None, "Price to Book"),
+                        unsafe_allow_html=True,
+                    )
 
-                # Add a recommendation metric if available
+            with col4:
+                if ps:
+                    tooltip = "Price to Sales - Stock price relative to annual revenue"
+                    st.markdown(
+                        styled_metric(
+                            "P/S Ratio", ps, tooltip, "ratio", positive_good=False
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric("P/S Ratio", None, "Price to Sales"),
+                        unsafe_allow_html=True,
+                    )
+
+            # Second row: Financial health and performance
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                if eps:
+                    tooltip = (
+                        "Earnings Per Share - Company profit allocated to each share"
+                    )
+                    st.markdown(
+                        styled_metric(
+                            "EPS", eps, tooltip, "currency", positive_good=True
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric("EPS", None, "Earnings Per Share"),
+                        unsafe_allow_html=True,
+                    )
+
+            with col2:
+                if gm is not None:
+                    tooltip = "Gross Margin - Revenue minus cost of goods sold (higher is better)"
+                    st.markdown(
+                        styled_metric(
+                            "Gross Margin",
+                            gm * 100,
+                            tooltip,
+                            "percent",
+                            positive_good=True,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "Gross Margin", None, "Revenue minus cost of goods sold"
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            with col3:
+                # Market cap with appropriate formatting
+                if ticker and hasattr(ticker, "info") and "marketCap" in ticker.info:
+                    market_cap = ticker.info["marketCap"]
+                    currency = ticker.info.get("financialCurrency", "USD")
+
+                    if market_cap >= 1e9:
+                        tooltip = (
+                            f"Total market value of outstanding shares ({currency})"
+                        )
+                        st.markdown(
+                            styled_metric(
+                                "Market Cap",
+                                market_cap,
+                                tooltip,
+                                "billions",
+                                prefix="",
+                                suffix=" " + currency,
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        tooltip = (
+                            f"Total market value of outstanding shares ({currency})"
+                        )
+                        st.markdown(
+                            styled_metric(
+                                "Market Cap",
+                                market_cap,
+                                tooltip,
+                                "millions",
+                                prefix="",
+                                suffix=" " + currency,
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "Market Cap",
+                            None,
+                            "Total market value of outstanding shares",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            with col4:
+                # 52-week range information
+                if ticker and hasattr(ticker, "info"):
+                    current_price = (
+                        ticker.info.get("currentPrice")
+                        or ticker.info.get("regularMarketPrice")
+                        or ticker.info.get("previousClose")
+                    )
+                    week_low = ticker.info.get("fiftyTwoWeekLow")
+                    week_high = ticker.info.get("fiftyTwoWeekHigh")
+
+                    if current_price and week_low and week_high:
+                        # Calculate position in 52-week range as percentage
+                        range_position = (
+                            (current_price - week_low) / (week_high - week_low) * 100
+                        )
+                        tooltip = f"Current price position in 52-week range: ${week_low:.2f} to ${week_high:.2f}"
+                        st.markdown(
+                            styled_metric(
+                                "52-Week Range", range_position, tooltip, "percent"
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        st.markdown(
+                            styled_metric(
+                                "52-Week Range",
+                                None,
+                                "Current price position in 52-week range",
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "52-Week Range",
+                            None,
+                            "Current price position in 52-week range",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            # Third row: Analyst ratings and dividend information
+            col1, col2, col3, col4 = st.columns(4)
+
+            with col1:
+                # Analyst rating
                 if (
-                    "recommendationMean" in ticker.info
+                    ticker
+                    and hasattr(ticker, "info")
+                    and "recommendationMean" in ticker.info
                     and ticker.info["recommendationMean"] is not None
                 ):
                     rec_value = ticker.info["recommendationMean"]
-                    st.metric(label="Analyst Rating", value=f"{round(rec_value,1)}/5")
-                else:
-                    st.metric(label="Analyst Rating", value="-")
 
+                    # Create a description based on the rating
+                    rec_desc = ""
+                    if rec_value <= 1.5:
+                        rec_desc = "Strong Buy"
+                    elif rec_value <= 2.5:
+                        rec_desc = "Buy"
+                    elif rec_value <= 3.5:
+                        rec_desc = "Hold"
+                    elif rec_value <= 4.5:
+                        rec_desc = "Sell"
+                    else:
+                        rec_desc = "Strong Sell"
+
+                    tooltip = f"Average analyst rating: {rec_desc} (Scale: 1=Strong Buy to 5=Strong Sell)"
+                    # For ratings, lower is better
+                    st.markdown(
+                        styled_metric(
+                            "Analyst Rating",
+                            rec_value,
+                            tooltip,
+                            "ratio",
+                            positive_good=False,
+                            suffix="/5",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "Analyst Rating", None, "Average analyst recommendation"
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            with col2:
+                # Dividend yield
+                if (
+                    ticker
+                    and hasattr(ticker, "info")
+                    and "dividendYield" in ticker.info
+                    and ticker.info["dividendYield"] is not None
+                ):
+                    dividend_yield = (
+                        ticker.info["dividendYield"] * 100
+                    )  # Convert to percentage
+                    tooltip = "Annual dividend payment as percentage of share price"
+                    st.markdown(
+                        styled_metric(
+                            "Dividend Yield",
+                            dividend_yield,
+                            tooltip,
+                            "percent",
+                            positive_good=True,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "Dividend Yield",
+                            None,
+                            "Annual dividend payment as percentage of share price",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            with col3:
+                # Beta
+                if (
+                    ticker
+                    and hasattr(ticker, "info")
+                    and "beta" in ticker.info
+                    and ticker.info["beta"] is not None
+                ):
+                    beta = ticker.info["beta"]
+                    tooltip = "Stock volatility vs. market (>1 = more volatile, <1 = less volatile)"
+                    st.markdown(
+                        styled_metric("Beta", beta, tooltip, "ratio"),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "Beta",
+                            None,
+                            "Measure of stock volatility relative to the market",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            with col4:
+                # Return on Equity (ROE)
+                if (
+                    ticker
+                    and hasattr(ticker, "info")
+                    and "returnOnEquity" in ticker.info
+                    and ticker.info["returnOnEquity"] is not None
+                ):
+                    roe = ticker.info["returnOnEquity"] * 100  # Convert to percentage
+                    tooltip = "Net income as a percentage of shareholder equity (higher is better)"
+                    st.markdown(
+                        styled_metric(
+                            "ROE", roe, tooltip, "percent", positive_good=True
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "ROE",
+                            None,
+                            "Return on Equity - Profitability relative to equity",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            # Add an expandable section for additional metrics
+            with st.expander("Show More Metrics", expanded=False):
+                cols = st.columns(4)
+
+                metric_count = 0
+                additional_metrics = [
+                    (
+                        "Debt to Equity",
+                        "debtToEquity",
+                        "ratio",
+                        False,
+                        "Debt relative to equity (lower is better)",
+                    ),
+                    (
+                        "Current Ratio",
+                        "currentRatio",
+                        "ratio",
+                        True,
+                        "Current assets divided by current liabilities (>1 is good)",
+                    ),
+                    (
+                        "Profit Margin",
+                        "profitMargins",
+                        "percent",
+                        True,
+                        "Net profit as percentage of revenue",
+                    ),
+                    (
+                        "Operating Margin",
+                        "operatingMargins",
+                        "percent",
+                        True,
+                        "Operating profit as percentage of revenue",
+                    ),
+                    (
+                        "Target Price",
+                        "targetMedianPrice",
+                        "currency",
+                        None,
+                        "Median analyst price target",
+                    ),
+                    (
+                        "Price/Cash Flow",
+                        "priceToOperCashPerShare",
+                        "ratio",
+                        False,
+                        "Share price relative to operating cash flow per share",
+                    ),
+                    (
+                        "Rev. Growth (YoY)",
+                        "revenueGrowth",
+                        "percent",
+                        True,
+                        "Year-over-year revenue growth",
+                    ),
+                    (
+                        "Earnings Growth",
+                        "earningsGrowth",
+                        "percent",
+                        True,
+                        "Year-over-year earnings growth",
+                    ),
+                    (
+                        "Shares Outstanding",
+                        "sharesOutstanding",
+                        "integer",
+                        None,
+                        "Total shares issued by company",
+                    ),
+                    (
+                        "Short Ratio",
+                        "shortRatio",
+                        "ratio",
+                        False,
+                        "Days to cover short positions",
+                    ),
+                    (
+                        "Book Value/Share",
+                        "bookValue",
+                        "currency",
+                        True,
+                        "Company's book value per share",
+                    ),
+                    (
+                        "50-Day Avg",
+                        "fiftyDayAverage",
+                        "currency",
+                        None,
+                        "Average closing price over last 50 days",
+                    ),
+                ]
+
+                for (
+                    metric_name,
+                    info_key,
+                    formatter,
+                    positive_good,
+                    tooltip,
+                ) in additional_metrics:
+                    if metric_count % 4 == 0 and metric_count > 0:
+                        cols = st.columns(4)
+
+                    with cols[metric_count % 4]:
+                        # Check if ticker has this metric
+                        if (
+                            ticker
+                            and hasattr(ticker, "info")
+                            and info_key in ticker.info
+                            and ticker.info[info_key] is not None
+                        ):
+                            value = ticker.info[info_key]
+                            # Handle percentage conversions
+                            if (
+                                formatter == "percent"
+                                and value < 1
+                                and info_key not in ["shortRatio", "currentRatio"]
+                            ):
+                                value *= 100
+
+                            # For metrics where we don't know if positive is good
+                            if positive_good is None:
+                                st.markdown(
+                                    styled_metric(
+                                        metric_name,
+                                        value,
+                                        tooltip,
+                                        formatter,
+                                        positive_good=None,
+                                    ),
+                                    unsafe_allow_html=True,
+                                )
+                            else:
+                                st.markdown(
+                                    styled_metric(
+                                        metric_name,
+                                        value,
+                                        tooltip,
+                                        formatter,
+                                        positive_good=positive_good,
+                                    ),
+                                    unsafe_allow_html=True,
+                                )
+                        else:
+                            st.markdown(
+                                styled_metric(metric_name, None, tooltip),
+                                unsafe_allow_html=True,
+                            )
+
+                    metric_count += 1
+
+            # Close container
             st.markdown("</div>", unsafe_allow_html=True)
 
     def plot_with_volume_profile(
@@ -942,10 +1264,10 @@ class CandlestickCharts(ChartBase):
 
             # Check if the price is within the value area based on the selected option
             if option[0] == "va_high":
-                # Filter OUT stocks where price is NOT in value area
-                if current_price < va_low or current_price > va_high:
+                # Filter OUT stocks where price is ABOVE VA High
+                if current_price > va_high:
                     info(
-                        f"{ticker_symbol} - current price is outside value area: {current_price} (VA Low: {va_low}, VA High: {va_high})"
+                        f"{ticker_symbol} - current price is above value area high: {current_price} (VA High: {va_high})"
                     )
                     return 0
             elif option[0] == "poc_price":
@@ -974,23 +1296,35 @@ class CandlestickCharts(ChartBase):
                         ticker_symbol, ticker, eps, pe, ps, pb, peg, gm
                     )
 
-                    # Main content area with two columns
+                    # Main content area with two columns - ENSURE CONSISTENT SIZING
                     col1, col2 = st.columns([1, 1])  # Equal width columns
 
                     with col1:
                         # Display the chart in the left column (taking half the width)
-                        self._display_market_profile_chart(
-                            ticker_symbol, data, va_high, va_low, poc_price
-                        )
+                        try:
+                            fig = self._display_market_profile_chart(
+                                ticker_symbol, data, va_high, va_low, poc_price, option
+                            )
+                            if (
+                                fig != 0
+                            ):  # Check if figure was returned and not a filter code
+                                st.pyplot(fig)
+                        except TypeError:
+                            fig = self._display_market_profile_chart(
+                                ticker_symbol, data, va_high, va_low, poc_price
+                            )
+                            if (
+                                fig != 0
+                            ):  # Check if figure was returned and not a filter code
+                                st.pyplot(fig)
 
                     with col2:
-
                         # Display news articles
                         SentimentAnalyzer().display_news_without_sentiment(
                             ticker_symbol
                         )
 
-                # Add some spacing after each ticker section
+                # Add some spacing after each ticker section - keep minimal for scrollable container
                 st.markdown("<br>", unsafe_allow_html=True)
 
             else:
@@ -1624,7 +1958,13 @@ class ChartGenerator:
             ticker_symbol, start_date, end_date, combined_metrics, option
         )
 
-    def plot_candle_charts_per_symbol(self, start_date, end_date, metrics, option):
+    def plot_candle_charts_per_symbol(
+        self,
+        start_date,
+        end_date,
+        metrics,
+        option,
+    ):
         return self.candlestick_charts.plot_candle_charts_per_symbol(
             start_date, end_date, metrics, option
         )
