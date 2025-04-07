@@ -571,43 +571,42 @@ class CandlestickCharts(ChartBase):
 
         return fig
 
-    def _display_ticker_metrics_dashboard(
-        self, ticker_symbol, ticker, eps, pe, ps, pb, peg, gm
-    ):
-        """Display ticker metrics in a dashboard layout with improved aesthetics and usability"""
+    def _display_ticker_metrics_dashboard(self, ticker):
+        """Display ticker metrics focused on value investing metrics"""
         # Use a container with enhanced styling for the metrics dashboard
         st.markdown(
             """
             <style>
             .metrics-container {
-                padding: 15px;
+                padding: 10px;
                 border-radius: 10px;
-                margin-bottom: 20px;
+                margin-bottom: 15px;
                 background-color: rgba(30, 30, 40, 0.6);
                 border: 1px solid rgba(100, 100, 150, 0.2);
                 box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             }
             .metric-card {
                 background-color: rgba(40, 40, 60, 0.7);
-                border-radius: 8px;
-                padding: 10px;
+                border-radius: 6px;
+                padding: 8px;
                 text-align: center;
                 height: 100%;
                 transition: transform 0.2s, box-shadow 0.2s;
                 border: 1px solid rgba(100, 100, 150, 0.2);
+                margin-bottom: 8px;
             }
             .metric-card:hover {
-                transform: translateY(-3px);
-                box-shadow: 0 6px 8px rgba(0, 0, 0, 0.2);
+                transform: translateY(-2px);
+                box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
             }
             .metric-label {
-                font-size: 0.85rem;
+                font-size: 0.75rem;
                 color: rgba(200, 200, 220, 0.9);
-                margin-bottom: 5px;
+                margin-bottom: 3px;
                 font-weight: 500;
             }
             .metric-value {
-                font-size: 1.4rem;
+                font-size: 1.1rem;
                 font-weight: 600;
                 margin-bottom: 0;
             }
@@ -621,9 +620,9 @@ class CandlestickCharts(ChartBase):
                 color: rgba(220, 220, 255, 0.9);
             }
             .metric-desc {
-                font-size: 0.75rem;
+                font-size: 0.65rem;
                 color: rgba(180, 180, 200, 0.8);
-                margin-top: 5px;
+                margin-top: 3px;
                 font-style: italic;
             }
             .metric-container {
@@ -691,49 +690,86 @@ class CandlestickCharts(ChartBase):
             """
             return html
 
+        # Get values directly from ticker.info when available, otherwise use passed parameters
+        ticker_info = {}
+        if ticker and hasattr(ticker, "info") and ticker.info is not None:
+            ticker_info = ticker.info
+
+        # Core metrics with direct ticker.info access and fallbacks
+        trailing_eps = ticker_info.get("trailingEps")
+        trailing_pe = ticker_info.get("trailingPE")
+        price_to_sales = ticker_info.get("priceToSalesTrailing12Months")
+        price_to_book = ticker_info.get("priceToBook")
+        trailing_peg = ticker_info.get("trailingPegRatio")
+        gross_margins = ticker_info.get("grossMargins")
+        if (
+            gross_margins is not None
+            and isinstance(gross_margins, float)
+            and gross_margins <= 1
+        ):
+            # Convert decimal to percentage if needed
+            gross_margins = gross_margins * 100
+
         with st.container():
             st.markdown('<div class="metrics-container">', unsafe_allow_html=True)
 
-            # Organize metrics into categories with 3 rows of 4 columns
-            # First row: Valuation metrics
-            col1, col2, col3, col4 = st.columns(4)
+            # First row: Core Valuation Metrics
+            cols = st.columns(5)
 
-            with col1:
-                if peg:
-                    tooltip = "Price/Earnings to Growth - Lower values (<1) typically indicate better value"
+            # P/E Ratio (Trailing)
+            with cols[0]:
+                if trailing_pe:
+                    tooltip = "Trailing P/E - Price to last 12 months earnings"
                     st.markdown(
                         styled_metric(
-                            "PEG Ratio", peg, tooltip, "ratio", positive_good=False
+                            "P/E (TTM)",
+                            trailing_pe,
+                            tooltip,
+                            "ratio",
+                            positive_good=False,
                         ),
                         unsafe_allow_html=True,
                     )
                 else:
                     st.markdown(
-                        styled_metric("PEG Ratio", None, "Price/Earnings to Growth"),
+                        styled_metric("P/E (TTM)", None, "Trailing Price to Earnings"),
                         unsafe_allow_html=True,
                     )
 
-            with col2:
-                if pe:
-                    tooltip = "Price to Earnings - How much investors pay per dollar of earnings"
+            # Forward P/E
+            with cols[1]:
+                if (
+                    ticker_info
+                    and "forwardPE" in ticker_info
+                    and ticker_info["forwardPE"] is not None
+                ):
+                    value = ticker_info["forwardPE"]
+                    tooltip = "Forward P/E - Price to projected earnings"
                     st.markdown(
                         styled_metric(
-                            "P/E Ratio", pe, tooltip, "ratio", positive_good=False
+                            "P/E (Fwd)", value, tooltip, "ratio", positive_good=False
                         ),
                         unsafe_allow_html=True,
                     )
                 else:
                     st.markdown(
-                        styled_metric("P/E Ratio", None, "Price to Earnings"),
+                        styled_metric("P/E (Fwd)", None, "Forward Price to Earnings"),
                         unsafe_allow_html=True,
                     )
 
-            with col3:
-                if pb:
-                    tooltip = "Price to Book - Stock price relative to book value"
+            # P/B Ratio
+            with cols[2]:
+                if price_to_book:
+                    tooltip = (
+                        "Price to Book - Lower values typically suggest undervaluation"
+                    )
                     st.markdown(
                         styled_metric(
-                            "P/B Ratio", pb, tooltip, "ratio", positive_good=False
+                            "P/B Ratio",
+                            price_to_book,
+                            tooltip,
+                            "ratio",
+                            positive_good=False,
                         ),
                         unsafe_allow_html=True,
                     )
@@ -743,12 +779,17 @@ class CandlestickCharts(ChartBase):
                         unsafe_allow_html=True,
                     )
 
-            with col4:
-                if ps:
-                    tooltip = "Price to Sales - Stock price relative to annual revenue"
+            # P/S Ratio
+            with cols[3]:
+                if price_to_sales:
+                    tooltip = "Price to Sales - Lower values may indicate better value"
                     st.markdown(
                         styled_metric(
-                            "P/S Ratio", ps, tooltip, "ratio", positive_good=False
+                            "P/S Ratio",
+                            price_to_sales,
+                            tooltip,
+                            "ratio",
+                            positive_good=False,
                         ),
                         unsafe_allow_html=True,
                     )
@@ -758,17 +799,198 @@ class CandlestickCharts(ChartBase):
                         unsafe_allow_html=True,
                     )
 
-            # Second row: Financial health and performance
-            col1, col2, col3, col4 = st.columns(4)
+            # PEG Ratio
+            with cols[4]:
+                if trailing_peg:
+                    tooltip = "Price/Earnings to Growth - <1 typically indicates undervaluation"
+                    st.markdown(
+                        styled_metric(
+                            "PEG Ratio",
+                            trailing_peg,
+                            tooltip,
+                            "ratio",
+                            positive_good=False,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric("PEG Ratio", None, "Price/Earnings to Growth"),
+                        unsafe_allow_html=True,
+                    )
 
-            with col1:
-                if eps:
+            # Second row: Enterprise Value Metrics and Cash Flows
+            cols = st.columns(5)
+
+            # EV/EBITDA
+            with cols[0]:
+                if (
+                    ticker_info
+                    and "enterpriseToEbitda" in ticker_info
+                    and ticker_info["enterpriseToEbitda"] is not None
+                ):
+                    value = ticker_info["enterpriseToEbitda"]
+                    tooltip = "Enterprise Value to EBITDA - Key valuation metric"
+                    st.markdown(
+                        styled_metric(
+                            "EV/EBITDA", value, tooltip, "ratio", positive_good=False
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric("EV/EBITDA", None, "Enterprise Value to EBITDA"),
+                        unsafe_allow_html=True,
+                    )
+
+            # EV/Revenue
+            with cols[1]:
+                if (
+                    ticker_info
+                    and "enterpriseToRevenue" in ticker_info
+                    and ticker_info["enterpriseToRevenue"] is not None
+                ):
+                    value = ticker_info["enterpriseToRevenue"]
                     tooltip = (
-                        "Earnings Per Share - Company profit allocated to each share"
+                        "Enterprise Value to Revenue - Alternative valuation metric"
                     )
                     st.markdown(
                         styled_metric(
-                            "EPS", eps, tooltip, "currency", positive_good=True
+                            "EV/Revenue", value, tooltip, "ratio", positive_good=False
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "EV/Revenue", None, "Enterprise Value to Revenue"
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            # Price/Cash Flow
+            with cols[2]:
+                if (
+                    ticker_info
+                    and "priceToOperCashPerShare" in ticker_info
+                    and ticker_info["priceToOperCashPerShare"] is not None
+                ):
+                    value = ticker_info["priceToOperCashPerShare"]
+                    tooltip = (
+                        "Price to Cash Flow - Lower values may indicate better value"
+                    )
+                    st.markdown(
+                        styled_metric(
+                            "P/CF", value, tooltip, "ratio", positive_good=False
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "P/CF", None, "Price to Operating Cash Flow per Share"
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            # Free Cash Flow
+            with cols[3]:
+                if (
+                    ticker_info
+                    and "freeCashflow" in ticker_info
+                    and ticker_info["freeCashflow"] is not None
+                ):
+                    value = ticker_info["freeCashflow"]
+                    currency = ticker_info.get("financialCurrency", "USD")
+                    if value >= 1e9:
+                        tooltip = f"Free Cash Flow - Cash after capex ({currency})"
+                        st.markdown(
+                            styled_metric(
+                                "FCF",
+                                value,
+                                tooltip,
+                                "billions",
+                                positive_good=True,
+                                suffix=" " + currency,
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        tooltip = f"Free Cash Flow - Cash after capex ({currency})"
+                        st.markdown(
+                            styled_metric(
+                                "FCF",
+                                value,
+                                tooltip,
+                                "millions",
+                                positive_good=True,
+                                suffix=" " + currency,
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.markdown(
+                        styled_metric("FCF", None, "Free Cash Flow"),
+                        unsafe_allow_html=True,
+                    )
+
+            # Operating Cash Flow
+            with cols[4]:
+                if (
+                    ticker_info
+                    and "operatingCashflow" in ticker_info
+                    and ticker_info["operatingCashflow"] is not None
+                ):
+                    value = ticker_info["operatingCashflow"]
+                    currency = ticker_info.get("financialCurrency", "USD")
+                    if value >= 1e9:
+                        tooltip = (
+                            f"Operating Cash Flow - Cash from operations ({currency})"
+                        )
+                        st.markdown(
+                            styled_metric(
+                                "Op CF",
+                                value,
+                                tooltip,
+                                "billions",
+                                positive_good=True,
+                                suffix=" " + currency,
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                    else:
+                        tooltip = (
+                            f"Operating Cash Flow - Cash from operations ({currency})"
+                        )
+                        st.markdown(
+                            styled_metric(
+                                "Op CF",
+                                value,
+                                tooltip,
+                                "millions",
+                                positive_good=True,
+                                suffix=" " + currency,
+                            ),
+                            unsafe_allow_html=True,
+                        )
+                else:
+                    st.markdown(
+                        styled_metric("Op CF", None, "Operating Cash Flow"),
+                        unsafe_allow_html=True,
+                    )
+
+            # Third row: Profitability and Returns
+            cols = st.columns(5)
+
+            # EPS
+            with cols[0]:
+                if trailing_eps:
+                    tooltip = (
+                        "Earnings Per Share - Company's profit per outstanding share"
+                    )
+                    st.markdown(
+                        styled_metric(
+                            "EPS", trailing_eps, tooltip, "currency", positive_good=True
                         ),
                         unsafe_allow_html=True,
                     )
@@ -778,13 +1000,60 @@ class CandlestickCharts(ChartBase):
                         unsafe_allow_html=True,
                     )
 
-            with col2:
-                if gm is not None:
-                    tooltip = "Gross Margin - Revenue minus cost of goods sold (higher is better)"
+            # ROE
+            with cols[1]:
+                if (
+                    ticker_info
+                    and "returnOnEquity" in ticker_info
+                    and ticker_info["returnOnEquity"] is not None
+                ):
+                    roe = ticker_info["returnOnEquity"] * 100
+                    tooltip = (
+                        "Return on Equity - Measures profitability relative to equity"
+                    )
+                    st.markdown(
+                        styled_metric(
+                            "ROE", roe, tooltip, "percent", positive_good=True
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric("ROE", None, "Return on Equity"),
+                        unsafe_allow_html=True,
+                    )
+
+            # ROA
+            with cols[2]:
+                if (
+                    ticker_info
+                    and "returnOnAssets" in ticker_info
+                    and ticker_info["returnOnAssets"] is not None
+                ):
+                    roa = ticker_info["returnOnAssets"] * 100
+                    tooltip = (
+                        "Return on Assets - Measures efficiency of asset utilization"
+                    )
+                    st.markdown(
+                        styled_metric(
+                            "ROA", roa, tooltip, "percent", positive_good=True
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric("ROA", None, "Return on Assets"),
+                        unsafe_allow_html=True,
+                    )
+
+            # Gross Margin
+            with cols[3]:
+                if gross_margins is not None:
+                    tooltip = "Gross Margin - Indicates pricing power and production efficiency"
                     st.markdown(
                         styled_metric(
                             "Gross Margin",
-                            gm * 100,
+                            gross_margins,
                             tooltip,
                             "percent",
                             positive_good=True,
@@ -799,15 +1068,165 @@ class CandlestickCharts(ChartBase):
                         unsafe_allow_html=True,
                     )
 
-            with col3:
-                # Market cap with appropriate formatting
-                if ticker and hasattr(ticker, "info") and "marketCap" in ticker.info:
-                    market_cap = ticker.info["marketCap"]
-                    currency = ticker.info.get("financialCurrency", "USD")
+            # Profit Margin
+            with cols[4]:
+                if (
+                    ticker_info
+                    and "profitMargins" in ticker_info
+                    and ticker_info["profitMargins"] is not None
+                ):
+                    value = ticker_info["profitMargins"] * 100
+                    tooltip = "Net Profit Margin - Measures overall profitability"
+                    st.markdown(
+                        styled_metric(
+                            "Profit Margin",
+                            value,
+                            tooltip,
+                            "percent",
+                            positive_good=True,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "Profit Margin", None, "Net profit as percentage of revenue"
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            # Fourth row: Financial Health and Book Value
+            cols = st.columns(5)
+
+            # Debt to Equity
+            with cols[0]:
+                if (
+                    ticker_info
+                    and "debtToEquity" in ticker_info
+                    and ticker_info["debtToEquity"] is not None
+                ):
+                    value = ticker_info["debtToEquity"]
+                    tooltip = "Debt to Equity - Lower is better for financial stability"
+                    st.markdown(
+                        styled_metric(
+                            "D/E Ratio",
+                            value,
+                            tooltip,
+                            "ratio",
+                            positive_good=False,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "D/E Ratio",
+                            None,
+                            "Total debt relative to shareholders' equity",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            # Current Ratio
+            with cols[1]:
+                if (
+                    ticker_info
+                    and "currentRatio" in ticker_info
+                    and ticker_info["currentRatio"] is not None
+                ):
+                    value = ticker_info["currentRatio"]
+                    tooltip = "Current Ratio - Values >1 indicate good short-term financial health"
+                    st.markdown(
+                        styled_metric(
+                            "Current Ratio",
+                            value,
+                            tooltip,
+                            "ratio",
+                            positive_good=True,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "Current Ratio",
+                            None,
+                            "Current assets divided by current liabilities",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            # Quick Ratio
+            with cols[2]:
+                if (
+                    ticker_info
+                    and "quickRatio" in ticker_info
+                    and ticker_info["quickRatio"] is not None
+                ):
+                    value = ticker_info["quickRatio"]
+                    tooltip = "Quick Ratio - Liquidity excluding inventory (>1 is good)"
+                    st.markdown(
+                        styled_metric(
+                            "Quick Ratio",
+                            value,
+                            tooltip,
+                            "ratio",
+                            positive_good=True,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "Quick Ratio",
+                            None,
+                            "Liquidity excluding inventory",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            # Book Value per Share
+            with cols[3]:
+                if (
+                    ticker_info
+                    and "bookValue" in ticker_info
+                    and ticker_info["bookValue"] is not None
+                ):
+                    value = ticker_info["bookValue"]
+                    tooltip = "Book Value per Share - Theoretical value if company was liquidated"
+                    st.markdown(
+                        styled_metric(
+                            "Book Value",
+                            value,
+                            tooltip,
+                            "currency",
+                            positive_good=True,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "Book Value",
+                            None,
+                            "Company's book value per share",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            # Market Cap
+            with cols[4]:
+                if (
+                    ticker_info
+                    and "marketCap" in ticker_info
+                    and ticker_info["marketCap"] is not None
+                ):
+                    market_cap = ticker_info["marketCap"]
+                    currency = ticker_info.get("financialCurrency", "USD")
 
                     if market_cap >= 1e9:
                         tooltip = (
-                            f"Total market value of outstanding shares ({currency})"
+                            f"Market Cap - Total market value of company ({currency})"
                         )
                         st.markdown(
                             styled_metric(
@@ -822,7 +1241,7 @@ class CandlestickCharts(ChartBase):
                         )
                     else:
                         tooltip = (
-                            f"Total market value of outstanding shares ({currency})"
+                            f"Market Cap - Total market value of company ({currency})"
                         )
                         st.markdown(
                             styled_metric(
@@ -840,115 +1259,28 @@ class CandlestickCharts(ChartBase):
                         styled_metric(
                             "Market Cap",
                             None,
-                            "Total market value of outstanding shares",
+                            "Total market value of company",
                         ),
                         unsafe_allow_html=True,
                     )
 
-            with col4:
-                # 52-week range information
-                if ticker and hasattr(ticker, "info"):
-                    current_price = (
-                        ticker.info.get("currentPrice")
-                        or ticker.info.get("regularMarketPrice")
-                        or ticker.info.get("previousClose")
-                    )
-                    week_low = ticker.info.get("fiftyTwoWeekLow")
-                    week_high = ticker.info.get("fiftyTwoWeekHigh")
+            # Fifth row: Income, Growth, and Dividends
+            cols = st.columns(5)
 
-                    if current_price and week_low and week_high:
-                        # Calculate position in 52-week range as percentage
-                        range_position = (
-                            (current_price - week_low) / (week_high - week_low) * 100
-                        )
-                        tooltip = f"Current price position in 52-week range: ${week_low:.2f} to ${week_high:.2f}"
-                        st.markdown(
-                            styled_metric(
-                                "52-Week Range", range_position, tooltip, "percent"
-                            ),
-                            unsafe_allow_html=True,
-                        )
-                    else:
-                        st.markdown(
-                            styled_metric(
-                                "52-Week Range",
-                                None,
-                                "Current price position in 52-week range",
-                            ),
-                            unsafe_allow_html=True,
-                        )
-                else:
-                    st.markdown(
-                        styled_metric(
-                            "52-Week Range",
-                            None,
-                            "Current price position in 52-week range",
-                        ),
-                        unsafe_allow_html=True,
-                    )
-
-            # Third row: Analyst ratings and dividend information
-            col1, col2, col3, col4 = st.columns(4)
-
-            with col1:
-                # Analyst rating
+            # Dividend Yield
+            with cols[0]:
                 if (
-                    ticker
-                    and hasattr(ticker, "info")
-                    and "recommendationMean" in ticker.info
-                    and ticker.info["recommendationMean"] is not None
+                    ticker_info
+                    and "dividendYield" in ticker_info
+                    and ticker_info["dividendYield"] is not None
                 ):
-                    rec_value = ticker.info["recommendationMean"]
-
-                    # Create a description based on the rating
-                    rec_desc = ""
-                    if rec_value <= 1.5:
-                        rec_desc = "Strong Buy"
-                    elif rec_value <= 2.5:
-                        rec_desc = "Buy"
-                    elif rec_value <= 3.5:
-                        rec_desc = "Hold"
-                    elif rec_value <= 4.5:
-                        rec_desc = "Sell"
-                    else:
-                        rec_desc = "Strong Sell"
-
-                    tooltip = f"Average analyst rating: {rec_desc} (Scale: 1=Strong Buy to 5=Strong Sell)"
-                    # For ratings, lower is better
-                    st.markdown(
-                        styled_metric(
-                            "Analyst Rating",
-                            rec_value,
-                            tooltip,
-                            "ratio",
-                            positive_good=False,
-                            suffix="/5",
-                        ),
-                        unsafe_allow_html=True,
+                    dividend_yield = ticker_info["dividendYield"] * 100
+                    tooltip = (
+                        "Dividend Yield - Annual dividend as percentage of share price"
                     )
-                else:
                     st.markdown(
                         styled_metric(
-                            "Analyst Rating", None, "Average analyst recommendation"
-                        ),
-                        unsafe_allow_html=True,
-                    )
-
-            with col2:
-                # Dividend yield
-                if (
-                    ticker
-                    and hasattr(ticker, "info")
-                    and "dividendYield" in ticker.info
-                    and ticker.info["dividendYield"] is not None
-                ):
-                    dividend_yield = (
-                        ticker.info["dividendYield"] * 100
-                    )  # Convert to percentage
-                    tooltip = "Annual dividend payment as percentage of share price"
-                    st.markdown(
-                        styled_metric(
-                            "Dividend Yield",
+                            "Div Yield",
                             dividend_yield,
                             tooltip,
                             "percent",
@@ -959,23 +1291,109 @@ class CandlestickCharts(ChartBase):
                 else:
                     st.markdown(
                         styled_metric(
-                            "Dividend Yield",
+                            "Div Yield",
                             None,
-                            "Annual dividend payment as percentage of share price",
+                            "Annual dividend as percentage of share price",
                         ),
                         unsafe_allow_html=True,
                     )
 
-            with col3:
-                # Beta
+            # Payout Ratio
+            with cols[1]:
                 if (
-                    ticker
-                    and hasattr(ticker, "info")
-                    and "beta" in ticker.info
-                    and ticker.info["beta"] is not None
+                    ticker_info
+                    and "payoutRatio" in ticker_info
+                    and ticker_info["payoutRatio"] is not None
                 ):
-                    beta = ticker.info["beta"]
-                    tooltip = "Stock volatility vs. market (>1 = more volatile, <1 = less volatile)"
+                    value = ticker_info["payoutRatio"] * 100
+                    tooltip = "Payout Ratio - Percentage of earnings paid as dividends"
+                    st.markdown(
+                        styled_metric(
+                            "Payout Ratio",
+                            value,
+                            tooltip,
+                            "percent",
+                            positive_good=None,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "Payout Ratio",
+                            None,
+                            "Percentage of earnings paid as dividends",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            # Earnings Growth
+            with cols[2]:
+                if (
+                    ticker_info
+                    and "earningsGrowth" in ticker_info
+                    and ticker_info["earningsGrowth"] is not None
+                ):
+                    value = ticker_info["earningsGrowth"] * 100
+                    tooltip = "Earnings Growth - Year-over-year growth in earnings"
+                    st.markdown(
+                        styled_metric(
+                            "EPS Growth",
+                            value,
+                            tooltip,
+                            "percent",
+                            positive_good=True,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "EPS Growth",
+                            None,
+                            "Year-over-year earnings growth",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            # Revenue Growth
+            with cols[3]:
+                if (
+                    ticker_info
+                    and "revenueGrowth" in ticker_info
+                    and ticker_info["revenueGrowth"] is not None
+                ):
+                    value = ticker_info["revenueGrowth"] * 100
+                    tooltip = "Revenue Growth - Year-over-year growth in revenue"
+                    st.markdown(
+                        styled_metric(
+                            "Rev Growth",
+                            value,
+                            tooltip,
+                            "percent",
+                            positive_good=True,
+                        ),
+                        unsafe_allow_html=True,
+                    )
+                else:
+                    st.markdown(
+                        styled_metric(
+                            "Rev Growth",
+                            None,
+                            "Year-over-year revenue growth",
+                        ),
+                        unsafe_allow_html=True,
+                    )
+
+            # Beta
+            with cols[4]:
+                if (
+                    ticker_info
+                    and "beta" in ticker_info
+                    and ticker_info["beta"] is not None
+                ):
+                    beta = ticker_info["beta"]
+                    tooltip = "Beta - Volatility vs. market (<1 = less volatile, >1 = more volatile)"
                     st.markdown(
                         styled_metric("Beta", beta, tooltip, "ratio"),
                         unsafe_allow_html=True,
@@ -989,182 +1407,6 @@ class CandlestickCharts(ChartBase):
                         ),
                         unsafe_allow_html=True,
                     )
-
-            with col4:
-                # Return on Equity (ROE)
-                if (
-                    ticker
-                    and hasattr(ticker, "info")
-                    and "returnOnEquity" in ticker.info
-                    and ticker.info["returnOnEquity"] is not None
-                ):
-                    roe = ticker.info["returnOnEquity"] * 100  # Convert to percentage
-                    tooltip = "Net income as a percentage of shareholder equity (higher is better)"
-                    st.markdown(
-                        styled_metric(
-                            "ROE", roe, tooltip, "percent", positive_good=True
-                        ),
-                        unsafe_allow_html=True,
-                    )
-                else:
-                    st.markdown(
-                        styled_metric(
-                            "ROE",
-                            None,
-                            "Return on Equity - Profitability relative to equity",
-                        ),
-                        unsafe_allow_html=True,
-                    )
-
-            # Add an expandable section for additional metrics
-            with st.expander("Show More Metrics", expanded=False):
-                cols = st.columns(4)
-
-                metric_count = 0
-                additional_metrics = [
-                    (
-                        "Debt to Equity",
-                        "debtToEquity",
-                        "ratio",
-                        False,
-                        "Debt relative to equity (lower is better)",
-                    ),
-                    (
-                        "Current Ratio",
-                        "currentRatio",
-                        "ratio",
-                        True,
-                        "Current assets divided by current liabilities (>1 is good)",
-                    ),
-                    (
-                        "Profit Margin",
-                        "profitMargins",
-                        "percent",
-                        True,
-                        "Net profit as percentage of revenue",
-                    ),
-                    (
-                        "Operating Margin",
-                        "operatingMargins",
-                        "percent",
-                        True,
-                        "Operating profit as percentage of revenue",
-                    ),
-                    (
-                        "Target Price",
-                        "targetMedianPrice",
-                        "currency",
-                        None,
-                        "Median analyst price target",
-                    ),
-                    (
-                        "Price/Cash Flow",
-                        "priceToOperCashPerShare",
-                        "ratio",
-                        False,
-                        "Share price relative to operating cash flow per share",
-                    ),
-                    (
-                        "Rev. Growth (YoY)",
-                        "revenueGrowth",
-                        "percent",
-                        True,
-                        "Year-over-year revenue growth",
-                    ),
-                    (
-                        "Earnings Growth",
-                        "earningsGrowth",
-                        "percent",
-                        True,
-                        "Year-over-year earnings growth",
-                    ),
-                    (
-                        "Shares Outstanding",
-                        "sharesOutstanding",
-                        "integer",
-                        None,
-                        "Total shares issued by company",
-                    ),
-                    (
-                        "Short Ratio",
-                        "shortRatio",
-                        "ratio",
-                        False,
-                        "Days to cover short positions",
-                    ),
-                    (
-                        "Book Value/Share",
-                        "bookValue",
-                        "currency",
-                        True,
-                        "Company's book value per share",
-                    ),
-                    (
-                        "50-Day Avg",
-                        "fiftyDayAverage",
-                        "currency",
-                        None,
-                        "Average closing price over last 50 days",
-                    ),
-                ]
-
-                for (
-                    metric_name,
-                    info_key,
-                    formatter,
-                    positive_good,
-                    tooltip,
-                ) in additional_metrics:
-                    if metric_count % 4 == 0 and metric_count > 0:
-                        cols = st.columns(4)
-
-                    with cols[metric_count % 4]:
-                        # Check if ticker has this metric
-                        if (
-                            ticker
-                            and hasattr(ticker, "info")
-                            and info_key in ticker.info
-                            and ticker.info[info_key] is not None
-                        ):
-                            value = ticker.info[info_key]
-                            # Handle percentage conversions
-                            if (
-                                formatter == "percent"
-                                and value < 1
-                                and info_key not in ["shortRatio", "currentRatio"]
-                            ):
-                                value *= 100
-
-                            # For metrics where we don't know if positive is good
-                            if positive_good is None:
-                                st.markdown(
-                                    styled_metric(
-                                        metric_name,
-                                        value,
-                                        tooltip,
-                                        formatter,
-                                        positive_good=None,
-                                    ),
-                                    unsafe_allow_html=True,
-                                )
-                            else:
-                                st.markdown(
-                                    styled_metric(
-                                        metric_name,
-                                        value,
-                                        tooltip,
-                                        formatter,
-                                        positive_good=positive_good,
-                                    ),
-                                    unsafe_allow_html=True,
-                                )
-                        else:
-                            st.markdown(
-                                styled_metric(metric_name, None, tooltip),
-                                unsafe_allow_html=True,
-                            )
-
-                    metric_count += 1
 
             # Close container
             st.markdown("</div>", unsafe_allow_html=True)
@@ -1192,28 +1434,6 @@ class CandlestickCharts(ChartBase):
         website = "#"
         if hasattr(ticker, "info") and ticker.info is not None:
             website = ticker.info.get("website", "#")
-
-        # Get dashboard metrics
-        info(f"Retrieving dashboard metrics for {ticker_symbol}")
-        dashboard_metrics = FinancialMetrics().get_dashboard_metrics(
-            ticker_symbol, combined_metrics
-        )
-        (
-            eps,
-            pe,
-            ps,
-            pb,
-            peg,
-            gm,
-            wh52,
-            wl52,
-            currentPrice,
-            targetMedianPrice,
-            targetLowPrice,
-            targetMeanPrice,
-            targetHighPrice,
-            recommendationMean,
-        ) = dashboard_metrics
 
         if not data.empty:
             info(f"Calculating market profile for {ticker_symbol}")
@@ -1292,9 +1512,7 @@ class CandlestickCharts(ChartBase):
                     st.markdown(f"## {header_with_link}", unsafe_allow_html=True)
 
                     # Display metrics in a clean dashboard at the top
-                    self._display_ticker_metrics_dashboard(
-                        ticker_symbol, ticker, eps, pe, ps, pb, peg, gm
-                    )
+                    self._display_ticker_metrics_dashboard(ticker)
 
                     # Main content area with two columns - ENSURE CONSISTENT SIZING
                     col1, col2 = st.columns([1, 1])  # Equal width columns
@@ -1967,13 +2185,6 @@ class ChartGenerator:
     ):
         return self.candlestick_charts.plot_candle_charts_per_symbol(
             start_date, end_date, metrics, option
-        )
-
-    def display_ticker_metrics_dashboard(
-        self, ticker_symbol, ticker, eps, pe, ps, pb, peg, gm
-    ):
-        self.candlestick_charts._display_ticker_metrics_dashboard(
-            ticker_symbol, ticker, eps, pe, ps, pb, peg, gm
         )
 
     @staticmethod

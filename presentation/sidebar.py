@@ -135,8 +135,20 @@ class SidebarManager:
         file_path = "tickers.csv"
         try:
             info(f"Loading tickers from {file_path}")
-            df = pd.read_csv(file_path)
+            # Read the CSV file with comment lines handled properly
+            df = pd.read_csv(file_path, comment="#", skip_blank_lines=True)
+            print(df["ticker"].tolist())
+
+            # Extract only the ticker symbols
             company_symbols = df["ticker"].tolist() if "ticker" in df.columns else []
+
+            # Remove any potential NaN values or empty strings
+            company_symbols = [
+                ticker
+                for ticker in company_symbols
+                if isinstance(ticker, str) and ticker.strip()
+            ]
+
             info(f"Loaded {len(company_symbols)} tickers from tickers.csv")
             st.success(f"Loaded {len(company_symbols)} tickers from tickers.csv")
         except Exception as e:
@@ -248,7 +260,7 @@ class SidebarManager:
             min_default=0,
             max_default=100,
             is_percent=False,
-            enabled_default=True,
+            enabled_default=False,
             help_text="",
             min_help="",
             max_help="",
@@ -337,6 +349,7 @@ class SidebarManager:
                 0.0,
                 20.0,
                 is_percent=True,
+                enabled_default=False,
                 help_text="Price-to-Earnings (P/E) ratio - lower values may indicate undervaluation",
                 min_help="Minimum P/E ratio (0 for no minimum)",
                 max_help="Maximum P/E ratio (value investors typically prefer P/E < 15)",
@@ -347,6 +360,7 @@ class SidebarManager:
                 "Price to Book",
                 0.0,
                 2,
+                enabled_default=False,
                 help_text="Price-to-Book (P/B) ratio - lower values may indicate undervaluation",
                 min_help="Minimum Price to Book ratio (0 for no minimum)",
                 max_help="Maximum Price to Book ratio (value investors typically prefer P/B < 1.5)",
@@ -358,6 +372,7 @@ class SidebarManager:
                 25.0,
                 100.0,
                 is_percent=True,
+                enabled_default=False,
                 max_value=100.0,
                 help_text="Gross Margin percentage - higher values indicate better profitability",
                 min_help="Minimum Gross Margin percentage (value investors look for healthy margins)",
@@ -372,6 +387,7 @@ class SidebarManager:
                 10.0,
                 100.0,
                 is_percent=True,
+                enabled_default=False,
                 max_value=100.0,
                 help_text="Return on Equity (ROE) percentage - higher values indicate better capital efficiency",
                 min_help="Minimum Return on Equity percentage (value investors prefer > 10%)",
