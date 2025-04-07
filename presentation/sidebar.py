@@ -173,8 +173,14 @@ class SidebarManager:
         price_option = st.radio(
             "Select price threshold:",
             options=[
-                ("va_high", "Current Price inside VA"),
-                ("poc_price", "Current Price below POC"),
+                (
+                    "va_high",
+                    "Current Price inside VA",
+                ),  # Keep name for backward compatibility
+                (
+                    "poc_price",
+                    "Current Price below POC",
+                ),  # Keep name for backward compatibility
                 ("disabled", "Disable Price Area Filter"),
             ],
             format_func=lambda x: x[1],
@@ -190,9 +196,15 @@ class SidebarManager:
 
         # Add a note to make it clear what these filters do
         if price_option != "disabled":
-            st.info(
-                f"{'Showing only stocks with current price inside the Value Area' if price_option == 'va_high' else 'Showing only stocks with current price below the Point of Control'}"
+            desc = {
+                "va_high": "Showing only stocks with current price INSIDE the Value Area (between VA Low and VA High)",
+                "poc_price": "Showing only stocks with current price BELOW the Point of Control",
+            }
+            filter_desc = desc.get(
+                price_option[0] if isinstance(price_option, tuple) else price_option, ""
             )
+            if filter_desc:
+                st.info(filter_desc)
 
         # Custom CSS for filters
         st.markdown(

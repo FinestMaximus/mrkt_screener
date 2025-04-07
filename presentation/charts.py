@@ -10,7 +10,6 @@ import yfinance as yf
 import matplotlib.dates as mdates
 
 # Import custom logger functions
-from analysis.metrics import FinancialMetrics
 from data.news_research import SentimentAnalyzer
 from utils.logger import info, debug, warning, error, critical
 
@@ -1483,15 +1482,20 @@ class CandlestickCharts(ChartBase):
             # FIX ENDS HERE
 
             # Check if the price is within the value area based on the selected option
-            if option[0] == "va_high":
-                # Filter OUT stocks where price is ABOVE VA High
-                if current_price > va_high:
+            if isinstance(option, tuple) and len(option) > 0:
+                option_value = option[0]
+            else:
+                option_value = option
+
+            if option_value == "va_high":
+                # For "inside VA" filter: price must be BETWEEN va_low and va_high
+                if not (va_low <= current_price <= va_high):
                     info(
-                        f"{ticker_symbol} - current price is above value area high: {current_price} (VA High: {va_high})"
+                        f"{ticker_symbol} - current price is outside value area: {current_price} (VA Low: {va_low}, VA High: {va_high})"
                     )
                     return 0
-            elif option[0] == "poc_price":
-                # Filter OUT stocks where price is NOT below POC
+            elif option_value == "poc_price":
+                # For "below POC" filter: price must be below POC
                 if current_price >= poc_price:
                     info(
                         f"{ticker_symbol} - price is not below POC: {current_price} (POC: {poc_price})"
@@ -1553,592 +1557,70 @@ class CandlestickCharts(ChartBase):
             warning(f"No data found for {ticker_symbol} in the given date range.")
             return 0
 
-    def plot_candle_charts_per_symbol(
-        self,
-        start_date,
-        end_date,
-        metrics,
-        option,
-    ):
-        """Plot candle charts for each symbol organized by sector"""
-        info("Started plotting candle charts for each symbol")
+    def plot_candle_charts_per_symbol(self, start_date, end_date, df, price_option):
+        """
+        Plot candle charts for the filtered symbols
 
-        critical("Inputs for plotting candle charts:")
-        critical(f"Start Date: {start_date}")
-        critical(f"End Date: {end_date}")
-        critical(f"Combined Metrics: {metrics.get('company_labels')}")
-        critical(f"Option: {option}")
+        Parameters:
+        - start_date: Start date for chart data
+        - end_date: End date for chart data
+        - df: DataFrame containing all metrics data
+        - price_option: String indicating which price display option to use
+        """
+        # Get the list of symbols to plot
+        symbols = df["symbol"].tolist()
+        info(f"Plotting charts for {len(symbols)} symbols")
 
-        for ticker_symbol in metrics.get("company_labels"):
-            info(f"Attempting to plot candle chart for symbol: {ticker_symbol}")
+        # For each symbol, create the chart
+        for symbol in symbols:
+            # Get the row for this symbol
+            symbol_data = df[df["symbol"] == symbol]
 
-            response = self.plot_with_volume_profile(
-                ticker_symbol,
-                start_date,
-                end_date,
-                metrics,
-                option,
+            if symbol_data.empty:
+                warning(f"No data found for symbol {symbol}")
+                continue
+
+            # Extract market profile data if available - FIXED
+            def safe_extract(df, column):
+                """Safely extract a value from a DataFrame"""
+                if column in df.columns and not df.empty:
+                    val = df[column].iloc[0]
+                    # Handle different data types
+                    if isinstance(val, (list, tuple)) and len(val) > 0:
+                        return val[0]
+                    return val
+                return None
+
+            # Safely extract values using our helper function
+            poc_price = safe_extract(symbol_data, "poc_price")
+            va_high = safe_extract(symbol_data, "va_high")
+            va_low = safe_extract(symbol_data, "va_low")
+
+            debug(
+                f"Symbol: {symbol}, POC: {poc_price}, VA High: {va_high}, VA Low: {va_low}"
             )
 
-            if response == 0:
-                info(f"Skipped plotting for {ticker_symbol} due to no response")
-                continue
-
-        info("Finished plotting candle charts for all symbols")
-
-
-class MetricsCharts(ChartBase):
-    """Class for generating financial metrics visualizations"""
-
-    def __init__(self, metrics_analyzer):
-        """Initialize with metrics analyzer"""
-        super().__init__()
-        self.metrics_analyzer = metrics_analyzer
-
-    def create_combined_metrics_chart(self, combined_metrics):
-        """Create a combined interactive chart with multiple subplots for company comparison"""
-        if not combined_metrics or not isinstance(combined_metrics, dict):
-            raise ValueError("combined_metrics must be a non-empty dictionary.")
-
-        company_labels = combined_metrics.get("company_labels", [])
-        eps_values = combined_metrics.get("eps_values", [])
-
-        if not all(len(lst) == len(company_labels) for lst in [eps_values]):
-            raise ValueError("Inconsistent data lengths found in combined_metrics.")
-
-        high_diffs = [
-            combined_metrics["price_diff"].get(company, {}).get("high_diff", 0)
-            for company in company_labels
-        ]
-        low_diffs = [
-            combined_metrics["price_diff"].get(company, {}).get("low_diff", 0)
-            for company in company_labels
-        ]
-        market_caps = combined_metrics.get("market_caps", [])
-        priceToBook = combined_metrics.get("priceToBook", [])
-        pe_values = combined_metrics.get("pe_values", [])
-        peg_values = combined_metrics.get("peg_values", [])
-        priceToSalesTrailing12Months = combined_metrics.get(
-            "priceToSalesTrailing12Months", []
-        )
-        gross_margins = combined_metrics.get("gross_margins", [])
-        recommendations_summary = combined_metrics.get("recommendations_summary", [])
-        earningsGrowth = combined_metrics.get("earningsGrowth", [])
-        revenueGrowth = combined_metrics.get("revenueGrowth", [])
-        freeCashflow = combined_metrics.get("freeCashflow", [])
-        opCashflow = combined_metrics.get("opCashflow", [])
-        repurchaseCapStock = combined_metrics.get("repurchaseCapStock", [])
-
-        peg_min, peg_max = min(peg_values, default=0), max(peg_values, default=1)
-
-        fig = make_subplots(
-            rows=4,
-            cols=3,
-            subplot_titles=(
-                "Price Difference % Over the Last Year",
-                "EPS vs P/E Ratio",
-                "Gross Margin (%)",
-                "EPS vs P/B Ratio",
-                "EPS vs PEG Ratio",
-                "EPS vs P/S Ratio",
-                "Upgrades & Downgrades Timeline",
-                "Earnings Growth vs Revenue Growth",
-                "Free Cash Flow",
-                "Operational Cashflow",
-                "Repurchase of Capital Stock",
-            ),
-            specs=[
-                [{}, {}, {}],
-                [{}, {}, {}],
-                [{"colspan": 2}, None, {}],
-                [{}, {}, {}],
-            ],
-            vertical_spacing=0.1,
-        )
-
-        colors = {
-            company: f"hsl({(i / len(company_labels) * 360)},100%,50%)"
-            for i, company in enumerate(company_labels)
-        }
-
-        for i, company in enumerate(company_labels):
             try:
-                legendgroup = f"group_{company}"
-                marker_size = max(market_caps[i] / max(market_caps, default=1) * 50, 5)
-
-                fig.add_trace(
-                    go.Scatter(
-                        x=[high_diffs[i]],
-                        y=[low_diffs[i]],
-                        marker=dict(size=10, color=colors[company]),
-                        legendgroup=legendgroup,
-                        name=company,
-                        hoverinfo="none",
-                        hovertemplate=f"Company: {company}<br>High Diff: %{{x}}<br>Low Diff: %{{y}}<extra></extra>",
-                    ),
-                    row=1,
-                    col=1,
+                # Fetch historical data for this symbol
+                data = self.data_fetcher.fetch_historical_data(
+                    symbol, start_date, end_date
                 )
 
-                fig.add_trace(
-                    go.Scatter(
-                        x=[eps_values[i]],
-                        y=[pe_values[i]],
-                        marker=dict(size=marker_size, color=colors[company]),
-                        legendgroup=legendgroup,
-                        showlegend=False,
-                        hoverinfo="none",
-                        hovertemplate=f"Company: {company}<br>EPS: ${eps_values[i]}<br>P/E Ratio: {pe_values[i]}<extra></extra>",
-                    ),
-                    row=1,
-                    col=2,
-                )
-
-                # Continue adding all the traces as in the original code
-                # ...
-
-                # Add more traces for the other metrics
-
-            except (ValueError, TypeError, IndexError) as error:
-                error(f"Error plotting data for {company}: {error}")
-                continue
-
-        titles = [
-            ("High Diff (%)", "Low Diff (%)"),
-            ("EPS", "P/E Ratio"),
-            ("Company", "Gross Margin (%)"),
-            ("Price to Books", "EPS"),
-            ("PEG", "EPS"),
-            ("P/S", "EPS"),
-            ("Earnings Growth", "Revenue Growth"),
-            ("Years", "Free Cash Flow"),
-            ("Years", "Operational Cashflow"),
-            ("Years", "Repurchase of Capital Stock"),
-        ]
-
-        for col, (x_title, y_title) in enumerate(titles, start=1):
-            fig.update_xaxes(title_text=x_title, row=1, col=col)
-            fig.update_yaxes(title_text=y_title, row=1, col=col)
-
-        fig.update_xaxes(title_text="Recommendation Type", row=1, col=4)
-        fig.update_yaxes(title_text="Number of Recommendations", row=1, col=4)
-
-        fig.update_layout(height=1500)
-
-        fig.update_layout(
-            updatemenus=[
-                dict(
-                    type="buttons",
-                    direction="left",
-                    buttons=list(
-                        [
-                            dict(
-                                args=[{"visible": "legendonly"}],
-                                label="Hide All",
-                                method="restyle",
-                            ),
-                            dict(
-                                args=[{"visible": True}],
-                                label="Show All",
-                                method="restyle",
-                            ),
-                        ]
-                    ),
-                    pad={"r": 10, "t": 10},
-                    showactive=True,
-                    x=0,
-                    xanchor="left",
-                    y=-0.15,
-                    yanchor="top",
-                ),
-            ]
-        )
-
-        return fig
-
-    def plot_combined_interactive(self, combined_metrics):
-        """Create an interactive dashboard with multiple financial metrics visualizations"""
-        if not combined_metrics or not isinstance(combined_metrics, dict):
-            raise ValueError("combined_metrics must be a non-empty dictionary.")
-
-        company_labels = combined_metrics.get("company_labels", [])
-        eps_values = combined_metrics.get("eps_values", [])
-
-        if not all(len(lst) == len(company_labels) for lst in [eps_values]):
-            raise ValueError("Inconsistent data lengths found in combined_metrics.")
-
-        high_diffs = [
-            combined_metrics["price_diff"].get(company, {}).get("high_diff", 0)
-            for company in company_labels
-        ]
-        low_diffs = [
-            combined_metrics["price_diff"].get(company, {}).get("low_diff", 0)
-            for company in company_labels
-        ]
-        market_caps = combined_metrics.get("market_caps", [])
-        priceToBook = combined_metrics.get("priceToBook", [])
-        pe_values = combined_metrics.get("pe_values", [])
-        peg_values = combined_metrics.get("peg_values", [])
-        priceToSalesTrailing12Months = combined_metrics.get(
-            "priceToSalesTrailing12Months", []
-        )
-        gross_margins = combined_metrics.get("gross_margins", [])
-        recommendations_summary = combined_metrics.get("recommendations_summary", [])
-        earningsGrowth = combined_metrics.get("earningsGrowth", [])
-        revenueGrowth = combined_metrics.get("revenueGrowth", [])
-        freeCashflow = combined_metrics.get("freeCashflow", [])
-        opCashflow = combined_metrics.get("opCashflow", [])
-        repurchaseCapStock = combined_metrics.get("repurchaseCapStock", [])
-
-        peg_min, peg_max = min(peg_values, default=0), max(peg_values, default=1)
-
-        fig = make_subplots(
-            rows=4,
-            cols=3,
-            subplot_titles=(
-                "Price Difference % Over the Last Year",
-                "EPS vs P/E Ratio",
-                "Gross Margin (%)",
-                "EPS vs P/B Ratio",
-                "EPS vs PEG Ratio",
-                "EPS vs P/S Ratio",
-                "Upgrades & Downgrades Timeline",
-                "Earnings Growth vs Revenue Growth",
-                "Free Cash Flow",
-                "Operational Cashflow",
-                "Repurchase of Capital Stock",
-            ),
-            specs=[
-                [{}, {}, {}],
-                [{}, {}, {}],
-                [{"colspan": 2}, None, {}],
-                [{}, {}, {}],
-            ],
-            vertical_spacing=0.1,
-        )
-
-        colors = {
-            company: f"hsl({(i / len(company_labels) * 360)},100%,50%)"
-            for i, company in enumerate(company_labels)
-        }
-
-        for i, company in enumerate(company_labels):
-            try:
-                legendgroup = f"group_{company}"
-                marker_size = max(market_caps[i] / max(market_caps, default=1) * 50, 5)
-
-                # Add traces for each visualization
-                self._add_chart_traces(
-                    fig,
-                    company,
-                    i,
-                    colors,
-                    legendgroup,
-                    marker_size,
-                    high_diffs,
-                    low_diffs,
-                    eps_values,
-                    pe_values,
-                    gross_margins,
-                    priceToBook,
-                    peg_values,
-                    priceToSalesTrailing12Months,
-                    recommendations_summary,
-                    earningsGrowth,
-                    revenueGrowth,
-                    freeCashflow,
-                    opCashflow,
-                    repurchaseCapStock,
-                    company_labels,
-                )
-
-            except (ValueError, TypeError, IndexError) as error:
-                error(f"Error plotting data for {company}: {error}")
-                continue
-
-        # Set chart titles and labels
-        self._configure_chart_axes(fig)
-
-        fig.update_layout(height=1500)
-        fig.update_layout(
-            updatemenus=[
-                dict(
-                    type="buttons",
-                    direction="left",
-                    buttons=list(
-                        [
-                            dict(
-                                args=[{"visible": "legendonly"}],
-                                label="Hide All",
-                                method="restyle",
-                            ),
-                            dict(
-                                args=[{"visible": True}],
-                                label="Show All",
-                                method="restyle",
-                            ),
-                        ]
-                    ),
-                    pad={"r": 10, "t": 10},
-                    showactive=True,
-                    x=0,
-                    xanchor="left",
-                    y=-0.15,
-                    yanchor="top",
-                ),
-            ]
-        )
-
-        return fig
-
-    def _add_chart_traces(
-        self,
-        fig,
-        company,
-        i,
-        colors,
-        legendgroup,
-        marker_size,
-        high_diffs,
-        low_diffs,
-        eps_values,
-        pe_values,
-        gross_margins,
-        priceToBook,
-        peg_values,
-        priceToSalesTrailing12Months,
-        recommendations_summary,
-        earningsGrowth,
-        revenueGrowth,
-        freeCashflow,
-        opCashflow,
-        repurchaseCapStock,
-        company_labels,
-    ):
-        """Helper method to add traces to the combined chart"""
-        # Price difference scatter plot
-        fig.add_trace(
-            go.Scatter(
-                x=[high_diffs[i]],
-                y=[low_diffs[i]],
-                marker=dict(size=10, color=colors[company]),
-                legendgroup=legendgroup,
-                name=company,
-                hoverinfo="none",
-                hovertemplate=f"Company: {company}<br>High Diff: %{{x}}<br>Low Diff: %{{y}}<extra></extra>",
-            ),
-            row=1,
-            col=1,
-        )
-
-        # EPS vs P/E scatter plot
-        fig.add_trace(
-            go.Scatter(
-                x=[eps_values[i]],
-                y=[pe_values[i]],
-                marker=dict(size=marker_size, color=colors[company]),
-                legendgroup=legendgroup,
-                showlegend=False,
-                hoverinfo="none",
-                hovertemplate=f"Company: {company}<br>EPS: ${eps_values[i]}<br>P/E Ratio: {pe_values[i]}<extra></extra>",
-            ),
-            row=1,
-            col=2,
-        )
-
-        # Gross margin bar chart
-        fig.add_trace(
-            go.Bar(
-                x=[company_labels[i]],
-                y=[gross_margins[i] * 100],
-                marker=dict(color=colors[company]),
-                legendgroup=legendgroup,
-                showlegend=False,
-                width=0.8,
-            ),
-            row=1,
-            col=3,
-        )
-
-        # EPS vs P/B scatter plot
-        fig.add_trace(
-            go.Scatter(
-                x=[eps_values[i]],
-                y=[priceToBook[i]],
-                marker=dict(size=marker_size, color=colors[company]),
-                legendgroup=legendgroup,
-                showlegend=False,
-                hoverinfo="none",
-                hovertemplate=f"Company: {company}<br>EPS: ${eps_values[i]}<br>P/B Ratio: {priceToBook[i]}<extra></extra>",
-            ),
-            row=2,
-            col=1,
-        )
-
-        # EPS vs PEG scatter plot
-        fig.add_trace(
-            go.Scatter(
-                x=[eps_values[i]],
-                y=[peg_values[i]],
-                marker=dict(size=marker_size, color=colors[company]),
-                legendgroup=legendgroup,
-                showlegend=False,
-                hoverinfo="none",
-                hovertemplate=f"Company: {company}<br>EPS: ${eps_values[i]}<br>PEG Ratio: {peg_values[i]}<extra></extra>",
-            ),
-            row=2,
-            col=2,
-        )
-
-        # EPS vs P/S scatter plot
-        fig.add_trace(
-            go.Scatter(
-                x=[eps_values[i]],
-                y=[priceToSalesTrailing12Months[i]],
-                marker=dict(size=marker_size, color=colors[company]),
-                legendgroup=legendgroup,
-                showlegend=False,
-                hoverinfo="none",
-                hovertemplate=f"Company: {company}<br>EPS: ${eps_values[i]}<br>P/S Ratio: {priceToSalesTrailing12Months[i]}<extra></extra>",
-            ),
-            row=2,
-            col=3,
-        )
-
-        # Add recommendations summary if available
-        self._add_recommendations_trace(
-            fig, company, i, colors, legendgroup, recommendations_summary
-        )
-
-        # Add cashflow traces
-        self._add_cashflow_traces(
-            fig,
-            company,
-            i,
-            colors,
-            legendgroup,
-            freeCashflow,
-            opCashflow,
-            repurchaseCapStock,
-        )
-
-        # Add growth comparison trace
-        fig.add_trace(
-            go.Scatter(
-                x=[revenueGrowth[i]],
-                y=[earningsGrowth[i]],
-                marker=dict(size=10, color=colors[company]),
-                legendgroup=legendgroup,
-                showlegend=False,
-                hoverinfo="none",
-                hovertemplate=f"Company: {company}<br>Revenue Growth: {revenueGrowth[i]}<br>Earnings Growth: {earningsGrowth[i]}<extra></extra>",
-            ),
-            row=3,
-            col=3,
-        )
-
-    def _configure_chart_axes(self, fig):
-        """Configure axes titles and ranges for the combined chart"""
-        titles = [
-            ("High Diff (%)", "Low Diff (%)"),
-            ("EPS", "P/E Ratio"),
-            ("Company", "Gross Margin (%)"),
-            ("Price to Books", "EPS"),
-            ("PEG", "EPS"),
-            ("P/S", "EPS"),
-            ("Earnings Growth", "Revenue Growth"),
-            ("Years", "Free Cash Flow"),
-            ("Years", "Operational Cashflow"),
-            ("Years", "Repurchase of Capital Stock"),
-        ]
-
-        for col, (x_title, y_title) in enumerate(titles, start=1):
-            fig.update_xaxes(title_text=x_title, row=1, col=col)
-            fig.update_yaxes(title_text=y_title, row=1, col=col)
-
-        fig.update_xaxes(title_text="Recommendation Type", row=1, col=4)
-        fig.update_yaxes(title_text="Number of Recommendations", row=1, col=4)
-
-    @staticmethod
-    def get_dash_metrics(ticker_symbol, combined_metrics):
-        """Get dashboard metrics for a ticker"""
-        # Default return values
-        default_return = (None,) * 14  # Returns 14 None values
-
-        try:
-            # First check if all required keys exist
-            required_keys = [
-                "company_labels",
-                "eps_values",
-                "pe_values",
-                "priceToSalesTrailing12Months",
-                "priceToBook",
-                "peg_values",
-                "gross_margins",
-                "fiftyTwoWeekHigh",
-                "fiftyTwoWeekLow",
-                "currentPrice",
-                "targetMedianPrice",
-                "targetLowPrice",
-                "targetMeanPrice",
-                "targetHighPrice",
-                "recommendationMean",
-            ]
-
-            # Check if all required keys exist
-            for key in required_keys:
-                if key not in combined_metrics:
-                    info(f"Missing key in combined_metrics: '{key}'")
-                    return default_return
-
-            if ticker_symbol in combined_metrics["company_labels"]:
-                index = combined_metrics["company_labels"].index(ticker_symbol)
-
-                # Check if index is valid for all lists
-                for key in required_keys[1:]:  # Skip company_labels
-                    if len(combined_metrics[key]) <= index:
-                        info(
-                            f"Index {index} out of range for key '{key}' with length {len(combined_metrics[key])}"
-                        )
-                        return default_return
-
-                eps = combined_metrics["eps_values"][index]
-                pe = combined_metrics["pe_values"][index]
-                ps = combined_metrics["priceToSalesTrailing12Months"][index]
-                pb = combined_metrics["priceToBook"][index]
-                peg = combined_metrics["peg_values"][index]
-                gm = combined_metrics["gross_margins"][index]
-                wh52 = combined_metrics["fiftyTwoWeekHigh"][index]
-                wl52 = combined_metrics["fiftyTwoWeekLow"][index]
-                currentPrice = combined_metrics["currentPrice"][index]
-                targetMedianPrice = combined_metrics["targetMedianPrice"][index]
-                targetLowPrice = combined_metrics["targetLowPrice"][index]
-                targetMeanPrice = combined_metrics["targetMeanPrice"][index]
-                targetHighPrice = combined_metrics["targetHighPrice"][index]
-                recommendationMean = combined_metrics["recommendationMean"][index]
-
-                return (
-                    eps,
-                    pe,
-                    ps,
-                    pb,
-                    peg,
-                    gm,
-                    wh52,
-                    wl52,
-                    currentPrice,
-                    targetMedianPrice,
-                    targetLowPrice,
-                    targetMeanPrice,
-                    targetHighPrice,
-                    recommendationMean,
-                )
-            else:
-                info(f"Ticker '{ticker_symbol}' not found in the labels list.")
-                return default_return
-        except Exception as e:
-            info(f"An error occurred in get_dash_metrics: {e}")
-            return default_return
+                if not data.empty:
+                    # Create and display the chart with volume profile
+                    st.subheader(f"{symbol} - Price Chart with Volume Profile")
+                    fig = self.plot_with_volume_profile(
+                        symbol, start_date, end_date, df, price_option
+                    )
+                    if fig:
+                        st.pyplot(fig)
+                    else:
+                        st.warning(f"Could not generate chart for {symbol}")
+                else:
+                    st.warning(f"No historical data available for {symbol}")
+            except Exception as e:
+                error(f"Error creating chart for {symbol}: {str(e)}")
+                st.error(f"Failed to create chart for {symbol}")
 
 
 class ChartGenerator:
@@ -2147,13 +1629,11 @@ class ChartGenerator:
     def __init__(
         self,
         data_fetcher,
-        metrics_analyzer,
         market_profile_analyzer,
         sentiment_analyzer,
     ):
         """Initialize with required service dependencies"""
         self.data_fetcher = data_fetcher
-        self.metrics_analyzer = metrics_analyzer
         self.market_profile_analyzer = market_profile_analyzer
         self.sentiment_analyzer = sentiment_analyzer
 
@@ -2161,7 +1641,6 @@ class ChartGenerator:
         self.candlestick_charts = CandlestickCharts(
             data_fetcher, market_profile_analyzer
         )
-        self.metrics_charts = MetricsCharts(metrics_analyzer)
 
     # Delegate to specialized chart classes
     def create_candle_chart_with_profile(self, data, poc_price, va_high, va_low):
@@ -2176,17 +1655,67 @@ class ChartGenerator:
             ticker_symbol, start_date, end_date, combined_metrics, option
         )
 
-    def plot_candle_charts_per_symbol(
-        self,
-        start_date,
-        end_date,
-        metrics,
-        option,
-    ):
-        return self.candlestick_charts.plot_candle_charts_per_symbol(
-            start_date, end_date, metrics, option
-        )
+    def plot_candle_charts_per_symbol(self, start_date, end_date, df, price_option):
+        """
+        Plot candle charts for the filtered symbols
 
-    @staticmethod
-    def get_dash_metrics(ticker_symbol, combined_metrics):
-        return MetricsCharts.get_dash_metrics(ticker_symbol, combined_metrics)
+        Parameters:
+        - start_date: Start date for chart data
+        - end_date: End date for chart data
+        - df: DataFrame containing all metrics data
+        - price_option: String indicating which price display option to use
+        """
+        # Get the list of symbols to plot
+        symbols = df["symbol"].tolist()
+        info(f"Plotting charts for {len(symbols)} symbols")
+
+        # For each symbol, create the chart
+        for symbol in symbols:
+            # Get the row for this symbol
+            symbol_data = df[df["symbol"] == symbol]
+
+            if symbol_data.empty:
+                warning(f"No data found for symbol {symbol}")
+                continue
+
+            # Extract market profile data if available - FIXED
+            def safe_extract(df, column):
+                """Safely extract a value from a DataFrame"""
+                if column in df.columns and not df.empty:
+                    val = df[column].iloc[0]
+                    # Handle different data types
+                    if isinstance(val, (list, tuple)) and len(val) > 0:
+                        return val[0]
+                    return val
+                return None
+
+            # Safely extract values using our helper function
+            poc_price = safe_extract(symbol_data, "poc_price")
+            va_high = safe_extract(symbol_data, "va_high")
+            va_low = safe_extract(symbol_data, "va_low")
+
+            debug(
+                f"Symbol: {symbol}, POC: {poc_price}, VA High: {va_high}, VA Low: {va_low}"
+            )
+
+            try:
+                # Fetch historical data for this symbol
+                data = self.data_fetcher.fetch_historical_data(
+                    symbol, start_date, end_date
+                )
+
+                if not data.empty:
+                    # Create and display the chart with volume profile
+                    st.subheader(f"{symbol} - Price Chart with Volume Profile")
+                    fig = self.plot_with_volume_profile(
+                        symbol, start_date, end_date, df, price_option
+                    )
+                    if fig:
+                        st.pyplot(fig)
+                    else:
+                        st.warning(f"Could not generate chart for {symbol}")
+                else:
+                    st.warning(f"No historical data available for {symbol}")
+            except Exception as e:
+                error(f"Error creating chart for {symbol}: {str(e)}")
+                st.error(f"Failed to create chart for {symbol}")

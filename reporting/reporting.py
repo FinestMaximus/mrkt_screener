@@ -197,8 +197,8 @@ class ReportGenerator:
         """
         html_content = ""
 
-        if metrics and "company_labels" in metrics:
-            companies = metrics["company_labels"]
+        if metrics and "symbols" in metrics:
+            companies = metrics["symbols"]
             html_content += '<table class="metrics-table"><tr><th>Company</th>'
 
             # Create a DataFrame to make it easier to work with metrics
@@ -369,8 +369,8 @@ class ReportGenerator:
             """
 
             # Add specific financial highlights if data is available
-            if "company_labels" in metrics and len(metrics["company_labels"]) > 0:
-                companies = metrics["company_labels"]
+            if "symbols" in metrics and len(metrics["symbols"]) > 0:
+                companies = metrics["symbols"]
 
                 # Check for financial metrics to highlight
                 if "opCashflow" in metrics and "freeCashflow" in metrics:
@@ -488,76 +488,72 @@ class ReportGenerator:
         </html>
         """
 
-    def generate_report(
-        self, metrics, charts_data=None, news_data=None, sentiment_data=None
-    ):
-        """Generate an HTML report with metrics, charts and news data
+    def generate_report(self, df):
+        """
+        Generate an HTML report based on the analysis results
 
-        Args:
-            metrics (dict): Dictionary of metrics data
-            charts_data (dict, optional): Dictionary of chart data by ticker symbol. Defaults to None.
-            news_data (dict, optional): Dictionary of news data by ticker symbol. Defaults to None.
-            sentiment_data (dict, optional): Dictionary of sentiment data by ticker symbol. Defaults to None.
+        Parameters:
+        - df: DataFrame containing all metrics data
 
         Returns:
-            bytes: HTML report as bytes
+        - HTML string containing the report
         """
-        info("Generating HTML report")
+        # Get the list of symbols
+        symbols = df["symbol"].tolist()
 
-        # Use instance data if not explicitly provided
-        if charts_data is None:
-            charts_data = self.charts_data
+        # Create HTML report structure
+        html = "<html><head><title>Analysis Report</title>"
+        html += "<style>body{font-family:Arial,sans-serif;margin:20px;}"
+        html += "table{border-collapse:collapse;width:100%;}"
+        html += "th,td{border:1px solid #ddd;padding:8px;text-align:left;}"
+        html += "th{background-color:#f2f9f9;}"
+        html += "tr:nth-child(even){background-color:#f9f9f9;}"
+        html += "h1,h2{color:#333;}</style></head><body>"
 
-        if news_data is None:
-            news_data = self.news_data
+        # Add report header
+        html += "<h1>Analysis Report</h1>"
 
-        if sentiment_data is None:
-            sentiment_data = self.sentiment_data
+        # Add summary section
+        html += "<h2>Summary</h2>"
+        html += f"<p>Total symbols analyzed: {len(symbols)}</p>"
 
-        try:
-            # Create a temporary HTML file
-            with tempfile.NamedTemporaryFile(suffix=".html", delete=False) as f:
-                html_file = f.name
+        # Create metrics table
+        html += "<h2>Metrics by Symbol</h2>"
+        html += "<table><tr><th>Symbol</th>"
 
-            # Format timestamp for the report
-            timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        # Add column headers (excluding symbol column)
+        for col in df.columns:
+            if col != "symbol":
+                html += f"<th>{col}</th>"
+        html += "</tr>"
 
-            # Start building HTML content
-            html_content = self._create_html_header(timestamp)
+        # Add data rows
+        for _, row in df.iterrows():
+            html += "<tr>"
+            html += f"<td>{row['symbol']}</td>"
+            for col in df.columns:
+                if col != "symbol":
+                    html += f"<td>{row[col]}</td>"
+            html += "</tr>"
 
-            # Add metrics table
-            html_content += self._create_metrics_section(metrics)
+        html += "</table>"
 
-            # Add charts section
-            html_content += self._create_charts_section(charts_data)
+        # Add chart and news sections if available (using the existing captured data)
+        if hasattr(self, "charts_data") and self.charts_data:
+            html += self._create_charts_section(self.charts_data)
 
-            # Add cashflow analysis section
-            html_content += self._create_cashflow_section(metrics)
+        if hasattr(self, "news_data") and self.news_data:
+            html += self._create_news_section(self.news_data)
 
-            # Add news section
-            html_content += self._create_news_section(news_data)
+        # Add metrics section if previously created
+        if hasattr(self, "_create_metrics_section"):
+            metrics_section = self._create_metrics_section(df)
+            if metrics_section:
+                html += metrics_section
 
-            # Add footer
-            html_content += self._create_footer()
+        html += "</body></html>"
 
-            # Write the HTML content to the file
-            with open(html_file, "w", encoding="utf-8") as f:
-                f.write(html_content)
-
-            # Read the HTML file and return its content
-            with open(html_file, "rb") as f:
-                html_data = f.read()
-
-            # Clean up the temporary file
-            os.unlink(html_file)
-
-            info("HTML report generated successfully")
-            return html_data
-
-        except Exception as e:
-            error(f"Error generating HTML report: {str(e)}")
-            error(traceback.format_exc())
-            return None
+        return html
 
     def create_download_link(self, html_data, filename="stock_analysis_report.html"):
         """Create a download link for the HTML file

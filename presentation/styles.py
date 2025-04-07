@@ -46,7 +46,34 @@ def apply_custom_styling():
     .stTabs {
         padding-top: 15px;
     }
+    .metrics-container {
+        margin-bottom: 20px;
+    }
     </style>
     """,
         unsafe_allow_html=True,
     )
+
+
+def create_metrics_container(content_callable):
+    """Create a container with proper styling for metrics.
+
+    Args:
+        content_callable: A callable that will render the content inside the container
+    """
+    st.markdown("<div class='metrics-container'>", unsafe_allow_html=True)
+    content_callable()
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def get_dataframe_config():
+    """Get standard configuration for dataframes in the dashboard.
+
+    Returns:
+        dict: Configuration parameters for st.dataframe
+    """
+    return {
+        "height": 400,  # Limit height to ensure it doesn't take too much space
+        "use_container_width": True,  # Use container width instead of fixed width
+        "hide_index": True,
+    }

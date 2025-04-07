@@ -52,7 +52,7 @@ class DataFetcher:
             "peg_values",
             "fullTimeEmployees",
             "gross_margins",
-            "company_labels",
+            "symbols",
             "boardRisk",
             "compensationRisk",
             "shareHolderRightsRisk",
@@ -368,30 +368,6 @@ class DataFetcher:
             max_workers = max(max_workers, 30)  # Increase worker count too
 
         metrics_list = []
-        important_metrics_keys = [
-            "symbol",
-            "longName",
-            "sector",
-            "industry",
-            "marketCap",
-            "currentPrice",
-            "targetHighPrice",
-            "targetLowPrice",
-            "targetMeanPrice",
-            "targetMedianPrice",
-            "recommendationMean",
-            "dividendYield",
-            "trailingPE",
-            "forwardPE",
-            "priceToBook",
-            "freeCashflow",
-            "operatingCashflow",
-            "revenueGrowth",
-            "grossMargins",
-            "returnOnEquity",
-            "forwardPegRatio",
-        ]
-
         total_companies = len(tickers)
         processed_count = 0
 
@@ -418,24 +394,20 @@ class DataFetcher:
                     processed_count += 1
 
                     try:
-                        # Rename the variable to avoid conflict with the info() logging function
+                        # Get the complete ticker info dictionary
                         ticker_info = future.result()
                         if ticker_info:
-                            # Filter to only include important metrics
-                            important_metrics = {
-                                key: ticker_info.get(key, None)
-                                for key in important_metrics_keys
-                            }
-                            important_metrics["company"] = company
-                            batch_results.append(important_metrics)
+                            # Add the company symbol to the info dict
+                            ticker_info["symbol"] = company
+                            batch_results.append(ticker_info)
                         else:
                             warning(f"No info returned for {company}")
                             batch_results.append(
-                                {"company": company, "error": "No data returned"}
+                                {"symbol": company, "error": "No data returned"}
                             )
                     except Exception as e:
                         error(f"Error processing {company}: {str(e)}")
-                        batch_results.append({"company": company, "error": str(e)})
+                        batch_results.append({"symbol": company, "error": str(e)})
 
                     # Update progress after each ticker is processed
                     if _progress_callback and callable(_progress_callback):

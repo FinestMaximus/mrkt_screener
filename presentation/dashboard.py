@@ -1,7 +1,8 @@
 import streamlit as st
 import pandas as pd
 from utils.logger import info, debug, warning, error
-from utils.helpers import replace_with_zero, get_date_range
+from presentation.styles import create_metrics_container, get_dataframe_config
+from analysis.market_profile import MarketProfileAnalyzer
 
 
 class DashboardManager:
@@ -11,30 +12,32 @@ class DashboardManager:
         """Initialize the dashboard manager"""
         info("Initializing DashboardManager")
 
-    def display_metrics_dashboard(self, metrics, filters=None):
-        """Display metrics dashboard with dataframe view"""
+    def display_metrics_dashboard(self, df, filters=None):
+        """
+        Display the metrics dashboard using the DataFrame
+
+        Parameters:
+        - df: DataFrame containing all metrics data
+        - filters: Dictionary of filter settings
+        """
         info("Displaying metrics dashboard")
 
-        # Create metrics cards at the top
-        st.markdown("<div style='margin-bottom: 20px;'>", unsafe_allow_html=True)
-        col1, col2 = st.columns(2)
-        with col1:
-            total_companies = len(metrics.get("company_labels", []))
+        # Create metrics cards at the top using the styling helper
+        def render_metrics():
+            total_companies = len(df["symbol"].tolist())
             info(f"Total companies in analysis: {total_companies}")
             st.metric(
                 label="Total Companies",
                 value=f"{total_companies}",
             )
-        with col2:
-            days = metrics.get("days_history", 1825)
-            info(f"Analysis period: {round(days/365)} years")
-            st.metric(label="Analysis Period", value=f"{round(days/365)} Years")
-        st.markdown("</div>", unsafe_allow_html=True)
+
+        # Use the container helper from styles
+        create_metrics_container(render_metrics)
 
         # Verify array lengths before creating DataFrame
         array_lengths = {
             k: len(v)
-            for k, v in metrics.items()
+            for k, v in df.items()
             if isinstance(v, list) and k != "days_history"
         }
 
@@ -44,7 +47,6 @@ class DashboardManager:
             return
 
         try:
-            df = pd.DataFrame(metrics)
             debug(f"Dashboard dataframe shape: {df.shape}")
             debug(f"Dashboard dataframe columns: {df.columns.tolist()}")
 
@@ -53,42 +55,23 @@ class DashboardManager:
                 df = self._apply_filters(df, filters)
                 debug(f"After filters, dataframe shape: {df.shape}")
 
-            # Transform cashflow data for better visualization
-            self._transform_cashflow_data(df)
-
             # Display dataframe with dynamic column configuration
             info("Displaying final metrics dashboard")
             column_config = self._create_column_config(df)
 
+            # Get standard dataframe configuration from styles
+            df_config = get_dataframe_config()
+
             st.dataframe(
                 df,
-                height=400,  # Limit height to ensure it doesn't take too much space
-                use_container_width=True,  # Use container width instead of fixed width
                 column_config=column_config,
-                hide_index=True,
+                **df_config,  # Apply all standard config options
             )
             info("Metrics dashboard displayed successfully")
 
         except Exception as e:
             error(f"Error creating DataFrame: {str(e)}")
             st.error(f"Error processing metrics data: {str(e)}")
-
-    def _transform_cashflow_data(self, df):
-        """Transform financial data for better visualization"""
-        # Transform operating cashflow data if it exists
-        if "opCashflow" in df.columns:
-            debug("Transforming operating cashflow data")
-            df["opCashflow"] = df["opCashflow"].apply(lambda x: replace_with_zero(x))
-
-        # Transform stock repurchase data if it exists
-        if "repurchaseCapStock" in df.columns:
-            debug("Transforming stock repurchase data")
-            df["repurchaseCapStock"] = df["repurchaseCapStock"].apply(
-                lambda x: replace_with_zero(x)
-            )
-            df["repurchaseCapStock"] = df["repurchaseCapStock"].apply(
-                lambda x: [-y for y in x] if isinstance(x, list) else -x
-            )
 
     def _apply_filters(self, df, filters):
         """Apply financial filters to the dataframe"""
@@ -333,162 +316,163 @@ class DashboardManager:
             "totalDebt": {"title": "Total Debt (4y)", "y_min": 0, "y_max": 1000},
         }
 
-        text_column_titles = {
-            "trailingPE": "Trailing P/E Ratio",
-            "forwardPE": "Forward P/E Ratio",
-            "priceToBook": "Price to Book Ratio",
-            "grossMargins": "Gross Margins",
-            "returnOnEquity": "Return on Equity",
-            "dividendYield": "Dividend Yield",
-            "forwardPegRatio": "PEG Ratio",
-            "marketCap": "Market Capitalization",
-            "currentPrice": "Current Price",
-        }
-
         # Build the configuration dictionary
         column_config = {}
 
-        # Add line chart columns
-        for col in df.columns:
-            if col in line_chart_configs:
-                config = line_chart_configs[col]
-                column_config[col] = st.column_config.LineChartColumn(
-                    config["title"], y_min=config["y_min"], y_max=config["y_max"]
-                )
-            elif col in text_column_titles:
-                column_config[col] = st.column_config.TextColumn(
-                    text_column_titles[col]
-                )
-
         return column_config
 
-    def create_companies_table(
-        self, list_metrics_all_tickers, company_symbols, filters=None
-    ):
+    def create_companies_table(self, all_metrics_all_tickers, filters=None):
         """
         Create and return a DataFrame of filtered company metrics.
 
         Args:
             list_metrics_all_tickers: List of dictionaries containing ticker metrics
-            company_symbols: List of company symbols as fallback
             filters: Dictionary containing filter settings
 
         Returns:
-            tuple: (filtered_companies_df, filtered_company_symbols)
+            tuple: (filtered_all_metrics_all_tickers)
         """
-        try:
-            # Create DataFrame from metrics data
-            if not list_metrics_all_tickers:
-                raise ValueError("No metrics data provided")
+        # Create DataFrame from metrics data
+        if not all_metrics_all_tickers:
+            raise ValueError("No metrics data provided")
 
-            if all(isinstance(item, dict) for item in list_metrics_all_tickers):
-                # Create DataFrame with proper error handling
-                filtered_companies_df = pd.DataFrame(list_metrics_all_tickers)
-            else:
-                # Handle case where we have inconsistent data structures
-                warning(
-                    "Inconsistent data structures in metrics data. Attempting to normalize."
-                )
-                filtered_companies_df = pd.DataFrame()
-                for ticker_data in list_metrics_all_tickers:
-                    if isinstance(ticker_data, dict):
-                        filtered_companies_df = pd.concat(
-                            [filtered_companies_df, pd.DataFrame([ticker_data])],
-                            ignore_index=True,
-                        )
+        if all(isinstance(item, dict) for item in all_metrics_all_tickers):
+            # Create DataFrame with proper error handling
+            filtered_all_metrics_all_tickers = pd.DataFrame(all_metrics_all_tickers)
+        else:
+            # Handle case where we have inconsistent data structures
+            warning(
+                "Inconsistent data structures in metrics data. Attempting to normalize."
+            )
+            filtered_all_metrics_all_tickers = pd.DataFrame()
+            for ticker_data in all_metrics_all_tickers:
+                if isinstance(ticker_data, dict):
+                    filtered_all_metrics_all_tickers = pd.concat(
+                        [filtered_all_metrics_all_tickers, pd.DataFrame([ticker_data])],
+                        ignore_index=True,
+                    )
 
-            # Apply financial filters if provided
-            if filters and not filtered_companies_df.empty:
-                filtered_companies_df = self._apply_filters(
-                    filtered_companies_df, filters
-                )
+        # Apply financial filters if provided
+        if filters and not filtered_all_metrics_all_tickers.empty:
+            filtered_all_metrics_all_tickers = self._apply_filters(
+                filtered_all_metrics_all_tickers, filters
+            )
 
-        except Exception as e:
-            error(f"Error creating DataFrame: {str(e)}")
-            st.error(f"Error processing metrics data: {str(e)}")
+        return filtered_all_metrics_all_tickers
 
-            # Create a basic DataFrame with just the company symbols to continue
-            info("Creating simplified DataFrame with just company symbols")
-            filtered_companies_df = pd.DataFrame({"company": company_symbols})
-
-        # Determine which company symbols to use
-        filtered_company_symbols = self._extract_company_symbols(
-            filtered_companies_df, company_symbols
-        )
-
-        return filtered_companies_df, filtered_company_symbols
-
-    def _extract_company_symbols(self, df, fallback_symbols):
+    def _extract_company_symbols(self, df):
         """Extract company symbols from DataFrame or use fallback"""
-        if "company" in df.columns:
-            symbols = df["company"].tolist()
-            debug("Using 'company' column for symbols")
-        elif "symbol" in df.columns:
+        if "symbol" in df.columns:
             symbols = df["symbol"].tolist()
             debug("Using 'symbol' column for symbols")
-        else:
-            symbols = fallback_symbols
-            warning("No symbol column found, using original company symbols")
 
         return symbols
 
     # Add a method to filter companies based on price area analysis
-    def filter_by_price_area(self, metrics, filtered_company_symbols, price_option):
+    def filter_by_price_area(self, df, price_option):
         """
-        Filter companies based on price position relative to Value Area and POC
+        Filter companies based on their current price relative to value area using MarketProfileAnalyzer
+
+        Parameters:
+        - df: DataFrame containing all metrics including market profile data
+        - price_option: String indicating which price filter to apply
+
+        Returns:
+        - List of filtered symbols
         """
         if price_option == "disabled":
-            return filtered_company_symbols
+            # If filtering is disabled, return all symbols
+            return df["symbol"].tolist()
 
-        # Import required classes here to avoid circular imports
-        from analysis.market_profile import MarketProfileAnalyzer
-        from data.tickers_yf_fetcher import DataFetcher
-        from utils.helpers import get_date_range
+        # Extract first part of tuple if price_option is a tuple
+        if isinstance(price_option, tuple) and len(price_option) > 0:
+            price_option = price_option[0]
 
-        # Get instances needed for calculation
+        # Create an instance of MarketProfileAnalyzer for proper comparison logic
         market_profile_analyzer = MarketProfileAnalyzer()
-        data_fetcher = DataFetcher()
 
-        # Get date range (use days_history from metrics)
-        days_back = metrics.get("days_history", 1825)  # Default to 5 years if not found
-        start_date, end_date = get_date_range(days_back)
-
+        # Create a list to store filtered symbols
         filtered_symbols = []
 
-        # Process each symbol
-        for symbol in filtered_company_symbols:
+        # Process each row in the DataFrame
+        for _, row in df.iterrows():
+            symbol = row["symbol"]
+
+            # Safely extract price data, handling both scalar values and pandas Series
             try:
-                # Fetch historical data for this symbol
-                data = data_fetcher.fetch_historical_data(symbol, start_date, end_date)
+                # Handle different possible data structures for these values
+                def extract_value(field):
+                    value = row.get(field)
+                    if value is None:
+                        return None
+                    # Handle list type
+                    if isinstance(value, list):
+                        return value[0] if value else None
+                    # Handle pandas Series type
+                    if hasattr(value, "values"):
+                        return value.values[0] if len(value.values) > 0 else None
+                    # Handle scalar value
+                    return value
 
-                if not data.empty:
-                    # Calculate market profile
-                    va_high, va_low, poc_price, _ = (
-                        market_profile_analyzer.calculate_market_profile(data)
+                current_price = extract_value("currentPrice")
+                poc_price = extract_value("poc_price")
+                va_high = extract_value("va_high")
+                va_low = extract_value("va_low")
+
+                # Log the extracted values for debugging
+                debug(
+                    f"Symbol: {symbol}, Current: {current_price}, POC: {poc_price}, VA High: {va_high}, VA Low: {va_low}"
+                )
+
+                # Skip if any required value is None or not numeric
+                if any(
+                    not isinstance(val, (int, float))
+                    for val in [current_price, poc_price, va_high, va_low]
+                ):
+                    debug(
+                        f"Skipping {symbol} due to missing or non-numeric market profile data"
                     )
+                    continue
 
-                    # Get current price (use last closing price as approximation)
-                    current_price = data["Close"].iloc[-1] if not data.empty else None
+                # Apply filtering based on price_option directly
+                if price_option == "va_high":
+                    # INSIDE VALUE AREA: Price must be BETWEEN va_low and va_high
+                    if va_low <= current_price <= va_high:
+                        debug(f"Symbol {symbol} INSIDE value area - KEEP")
+                        filtered_symbols.append(symbol)
+                    else:
+                        debug(f"Symbol {symbol} OUTSIDE value area - FILTER OUT")
+                elif price_option == "poc_price":
+                    # BELOW POC: Price must be BELOW poc_price
+                    if current_price < poc_price:
+                        debug(f"Symbol {symbol} BELOW POC - KEEP")
+                        filtered_symbols.append(symbol)
+                    else:
+                        debug(f"Symbol {symbol} NOT below POC - FILTER OUT")
+                elif price_option == "above_va":
+                    if current_price > va_high:
+                        filtered_symbols.append(symbol)
+                elif price_option == "below_va":
+                    if current_price < va_low:
+                        filtered_symbols.append(symbol)
+                elif price_option == "inside_va":
+                    if va_low <= current_price <= va_high:
+                        filtered_symbols.append(symbol)
+                elif price_option == "near_poc":
+                    # Price is near point of control (within 2%)
+                    poc_distance_percent = (
+                        abs(current_price - poc_price) / poc_price * 100
+                        if poc_price
+                        else 0
+                    )
+                    if poc_distance_percent < 2:  # Within 2% of POC
+                        filtered_symbols.append(symbol)
 
-                    # Apply filtering based on price option
-                    if all(
-                        value is not None
-                        for value in [current_price, poc_price, va_high, va_low]
-                    ):
-                        if price_option == "va_high":
-                            # Check if current price is below VA High (not strictly inside Value Area)
-                            if current_price <= va_high:
-                                filtered_symbols.append(symbol)
-                        elif price_option == "poc_price":
-                            # Check if current price is below POC
-                            if current_price < poc_price:
-                                filtered_symbols.append(symbol)
-                else:
-                    debug(f"No historical data found for {symbol}")
             except Exception as e:
-                warning(f"Error in market profile calculation for {symbol}: {e}")
+                warning(f"Error processing {symbol} in filter_by_price_area: {str(e)}")
+                # Skip this symbol on error
 
         info(
-            f"Filtered down to {len(filtered_symbols)} symbols based on {price_option} filter"
+            f"Price area filter '{price_option}' returned {len(filtered_symbols)} symbols out of {len(df)}"
         )
         return filtered_symbols
