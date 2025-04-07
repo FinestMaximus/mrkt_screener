@@ -12,6 +12,10 @@ INTC,Intel Corporation - Semiconductor manufacturing and global sales
 AMD,Advanced Micro Devices - Semiconductor manufacturing and global sales
 MU,Micron Technology - Memory chip manufacturing and global sales
 TXN,Texas Instruments - Semiconductor manufacturing and global sales
+TSM,Taiwan Semiconductor Manufacturing - World's largest semiconductor foundry with global exposure
+AMAT,Applied Materials - Semiconductor manufacturing equipment with global supply chains
+KLAC,KLA Corporation - Semiconductor process control equipment with significant Asia exposure
+LRCX,Lam Research - Semiconductor equipment manufacturing with global exposure
 CAT,Caterpillar Inc. - Heavy machinery exports globally
 DE,Deere & Company - Agricultural equipment exports
 BA,Boeing Co. - Aircraft exports vulnerable to retaliatory tariffs
@@ -43,6 +47,10 @@ HD,Home Depot Inc. - Retail with significant imports
 COST,Costco Wholesale - Retail with significant imports
 LVS,Las Vegas Sands - 63% revenue exposure to Greater China region (Macao operations)
 WYNN,Wynn Resorts - 47% revenue exposure to Greater China region (Macao operations)
+AVGO,Broadcom Inc. - Semiconductor solutions with global supply chains
+ADBE,Adobe Inc. - Global software and digital media solutions
+CRM,Salesforce Inc. - Global cloud-based CRM solutions
+PYPL,PayPal Holdings - Global digital payment platform
 
 # European companies with US exposure
 ASML,ASML Holding - Semiconductor equipment manufacturing
@@ -54,6 +62,8 @@ VWAGY,Volkswagen AG - Automotive
 BMWYY,BMW AG - Automotive
 DMLRY,Mercedes-Benz Group AG - Automotive
 SHECY,Schneider Electric SE - Energy management and automation
+RHHBY,Roche Holding AG - Global pharmaceutical company
+AZN,AstraZeneca PLC - Global pharmaceutical company
 
 # Chinese companies with US exposure
 BABA,Alibaba Group Holding - E-commerce
@@ -62,6 +72,7 @@ PDD,PDD Holdings Inc. - E-commerce
 NIO,NIO Inc. - Electric vehicles
 LI,Li Auto Inc. - Electric vehicles
 XPEV,XPeng Inc. - Electric vehicles
+BIDU,Baidu Inc. - Internet search and AI technology
 
 # Defensive sectors that may benefit during trade tensions
 GLD,SPDR Gold Shares - Gold ETF
@@ -71,3 +82,5 @@ VPU,Vanguard Utilities ETF - Utilities sector
 XLP,Consumer Staples Select Sector SPDR Fund - Consumer staples
 XLU,Utilities Select Sector SPDR Fund - Utilities sector
 XLRE,Real Estate Select Sector SPDR Fund - Real estate
+XLV,Health Care Select Sector SPDR Fund - Healthcare sector
+VNQ,Vanguard Real Estate ETF - Real estate investment trusts

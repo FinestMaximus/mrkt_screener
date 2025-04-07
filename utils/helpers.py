@@ -89,3 +89,96 @@ def replace_with_zero(lst):
     result = [0.0 if (pd.isna(x) or str(x).lower() == "nan") else x for x in lst]
     debug(f"Processed list with NaN replaced: {result}")
     return result
+
+
+def calculate_price_bins(data, num_bins=100):
+    """Calculate price bins for volume profile analysis
+
+    Args:
+        data: DataFrame with OHLC data
+        num_bins: Number of price bins to create
+
+    Returns:
+        tuple: (price_levels, bin_size, price_range)
+    """
+    price_range = data["High"].max() - data["Low"].min()
+    bin_size = price_range / num_bins
+    price_levels = [data["Low"].min() + i * bin_size for i in range(num_bins + 1)]
+
+    return price_levels, bin_size, price_range
+
+
+def distribute_volume_by_price(data, price_levels, bin_size):
+    """Distribute volume into price bins, separating buy/sell volume
+
+    Args:
+        data: DataFrame with OHLC data
+        price_levels: List of price levels
+        bin_size: Size of each price bin
+
+    Returns:
+        tuple: (buy_volume_by_price, sell_volume_by_price)
+    """
+    num_bins = len(price_levels) - 1
+    buy_volume_by_price = [0] * num_bins
+    sell_volume_by_price = [0] * num_bins
+
+    # Distribute volume into price bins
+    for i in range(1, len(data)):
+        row = data.iloc[i]
+
+        # Determine if day was predominantly buying or selling
+        is_up_day = row["Close"] > row["Open"]
+
+        for j in range(num_bins):
+            lower_bound = price_levels[j]
+            upper_bound = price_levels[j + 1]
+
+            # If price range during the day overlaps with this bin
+            if not (row["High"] < lower_bound or row["Low"] > upper_bound):
+                # Calculate volume proportion for this price level
+                volume_contribution = row["Volume"] / (
+                    (row["High"] - row["Low"]) / bin_size
+                )
+
+                # Assign to buy or sell volume based on price action
+                if is_up_day:
+                    buy_volume_by_price[j] += volume_contribution
+                else:
+                    sell_volume_by_price[j] += volume_contribution
+
+    return buy_volume_by_price, sell_volume_by_price
+
+
+def check_price_in_value_area(current_price, va_high, va_low, poc_price, option):
+    """Check if price is within the specified value area constraints
+
+    Args:
+        current_price: Current price of the ticker
+        va_high: Value Area High price
+        va_low: Value Area Low price
+        poc_price: Point of Control price
+        option: Option for filtering ('va_high', 'poc_price', etc.)
+
+    Returns:
+        bool: True if price is within desired value area, False otherwise
+    """
+    if current_price is None:
+        return True  # Can't filter without price, so allow it
+
+    # Extract option value if it's a tuple
+    if isinstance(option, tuple) and len(option) > 0:
+        option_value = option[0]
+    else:
+        option_value = option
+
+    # Check different filtering options
+    if option_value == "va_high":
+        # For "inside VA" filter: price must be BETWEEN va_low and va_high
+        return va_low <= current_price <= va_high
+    elif option_value == "poc_price":
+        # For "below POC" filter: price must be below POC
+        return current_price < poc_price
+
+    # No filtering or unknown option
+    return True
