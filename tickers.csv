@@ -84,3 +84,24 @@ XLU,Utilities Select Sector SPDR Fund - Utilities sector
 XLRE,Real Estate Select Sector SPDR Fund - Real estate
 XLV,Health Care Select Sector SPDR Fund - Healthcare sector
 VNQ,Vanguard Real Estate ETF - Real estate investment trusts
+
+# Broad market ETFs for diversification
+SPY,SPDR S&P 500 ETF Trust - Tracks the S&P 500 index
+QQQ,Invesco QQQ Trust - Tracks the Nasdaq-100 index
+IWM,iShares Russell 2000 ETF - Small-cap US stocks
+VEA,Vanguard FTSE Developed Markets ETF - Developed markets ex-US
+VWO,Vanguard FTSE Emerging Markets ETF - Emerging markets
+AGG,iShares Core U.S. Aggregate Bond ETF - US investment-grade bonds
+TLT,iShares 20+ Year Treasury Bond ETF - Long-term US Treasury bonds
+BND,Vanguard Total Bond Market ETF - Broad US bond market exposure
+
+# Inflation hedges and alternative investments
+TIP,iShares TIPS Bond ETF - Treasury Inflation-Protected Securities
+VTIP,Vanguard Short-Term Inflation-Protected Securities ETF - Short-term TIPS
+SCHP,Schwab U.S. TIPS ETF - Treasury Inflation-Protected Securities
+IAU,iShares Gold Trust - Gold ETF alternative
+SGOL,Aberdeen Standard Physical Gold Shares ETF - Gold backed ETF
+PSLV,Sprott Physical Silver Trust - Physical silver backed fund
+PPLT,Aberdeen Standard Physical Platinum Shares ETF - Platinum ETF
+PALL,Aberdeen Standard Physical Palladium Shares ETF - Palladium ETF
+DBC,Invesco DB Commodity Index Tracking Fund - Broad commodities exposure

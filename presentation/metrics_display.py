@@ -12,11 +12,11 @@ from presentation.styles import (
 )
 
 
-class ChartBase:
-    """Base class for chart generators with common functionality"""
+class FinancialMetricsDisplay:
+    """Class for displaying financial metrics dashboards"""
 
     def __init__(self):
-        """Initialize the base chart class"""
+        """Initialize the metrics display class"""
         pass
 
     def _format_business_summary(self, summary):
@@ -24,14 +24,6 @@ class ChartBase:
         summary_no_colons = summary.replace(":", "\:")
         wrapped_summary = textwrap.fill(summary_no_colons)
         return wrapped_summary
-
-
-class FinancialMetricsDisplay(ChartBase):
-    """Class for displaying financial metrics dashboards"""
-
-    def __init__(self):
-        """Initialize the metrics display class"""
-        super().__init__()
 
     def _get_metric_value(self, ticker_info, key, multiply_by_100=False):
         """Helper method to get a metric value from ticker info"""

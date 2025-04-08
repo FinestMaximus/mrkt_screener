@@ -395,9 +395,10 @@ class ChartGenerator:
                 shortName = ticker.info.get("shortName", ticker_symbol)
 
                 # Create a clean container for the entire ticker dashboard
-                with st.container():
-                    st.markdown("---")  # Divider for visual separation
-
+                with st.expander(
+                    f"{shortName} ({ticker_symbol}) \n\nP/E: {ticker.info.get('trailingPE', 'N/A')}, \n\nP/S: {ticker.info.get('priceToSalesTrailing12Months', 'N/A')}, \n\nP/B: {ticker.info.get('priceToBook', 'N/A')}, \n\nMCap: ${ticker.info.get('marketCap', 0)/1e9:.2f}B, \n\nOp Margin: {ticker.info.get('operatingMargins', 0)*100:.1f}%",
+                    expanded=False,
+                ):
                     # Header with company name and link
                     header_with_link = f"[🔗]({website}){shortName} - {ticker_symbol}"
                     st.markdown(f"## {header_with_link}", unsafe_allow_html=True)
@@ -432,9 +433,6 @@ class ChartGenerator:
                         self.sentiment_analyzer.display_news_without_sentiment(
                             ticker_symbol
                         )
-
-                # Add some spacing after each ticker section - keep minimal for scrollable container
-                st.markdown("<br>", unsafe_allow_html=True)
 
             else:
                 warning(f"No ticker info found for {ticker_symbol}")

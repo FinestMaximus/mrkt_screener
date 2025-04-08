@@ -162,7 +162,7 @@ class SidebarManager:
             "Days of historical data",
             365,
             3650,
-            1825,
+            2555,
             365,
             help="Number of days to look back for historical data analysis",
         )
