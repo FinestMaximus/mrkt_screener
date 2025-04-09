@@ -184,6 +184,7 @@ class SidebarManager:
                 ("disabled", "Disable Price Area Filter"),
             ],
             format_func=lambda x: x[1],
+            index=1,  # Select "Current Price below POC" by default
             help="""
             Value Area (VA): The price range where 70% of the trading volume occurred. Stocks with current price inside this range are considered fairly valued.
             
@@ -384,7 +385,7 @@ class SidebarManager:
                 25.0,
                 100.0,
                 is_percent=True,
-                enabled_default=False,
+                enabled_default=True,  # Enable Gross Margin filter by default
                 max_value=100.0,
                 help_text="Gross Margin percentage - higher values indicate better profitability",
                 min_help="Minimum Gross Margin percentage (value investors look for healthy margins)",

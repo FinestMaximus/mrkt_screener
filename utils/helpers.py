@@ -3,6 +3,7 @@ import re
 from datetime import datetime, timedelta
 import pandas as pd
 from utils.logger import info, debug, warning, error
+import numpy as np
 
 
 def get_date_range(days_back):
@@ -91,19 +92,33 @@ def replace_with_zero(lst):
     return result
 
 
-def calculate_price_bins(data, num_bins=100):
-    """Calculate price bins for volume profile analysis
+def calculate_price_bins(data, bin_size=0.5):
+    """Calculate price bins for volume profile analysis with fixed bin size
 
     Args:
         data: DataFrame with OHLC data
-        num_bins: Number of price bins to create
+        bin_size: Fixed size of each price bin (default: 0.5)
 
     Returns:
         tuple: (price_levels, bin_size, price_range)
     """
-    price_range = data["High"].max() - data["Low"].min()
-    bin_size = price_range / num_bins
-    price_levels = [data["Low"].min() + i * bin_size for i in range(num_bins + 1)]
+    price_min = data["Low"].min()
+    price_max = data["High"].max()
+
+    # Add a small buffer to ensure we capture all prices
+    buffer = (price_max - price_min) * 0.05
+    price_min -= buffer
+    price_max += buffer
+
+    # Round min down and max up to nearest 0.5 to get clean bins
+    price_min = np.floor(price_min * 2) / 2  # Round down to nearest 0.5
+    price_max = np.ceil(price_max * 2) / 2  # Round up to nearest 0.5
+
+    price_range = price_max - price_min
+    num_bins = int(np.ceil(price_range / bin_size))
+
+    # Create price levels
+    price_levels = [price_min + i * bin_size for i in range(num_bins + 1)]
 
     return price_levels, bin_size, price_range
 
@@ -150,35 +165,28 @@ def distribute_volume_by_price(data, price_levels, bin_size):
     return buy_volume_by_price, sell_volume_by_price
 
 
-def check_price_in_value_area(current_price, va_high, va_low, poc_price, option):
-    """Check if price is within the specified value area constraints
-
-    Args:
-        current_price: Current price of the ticker
-        va_high: Value Area High price
-        va_low: Value Area Low price
-        poc_price: Point of Control price
-        option: Option for filtering ('va_high', 'poc_price', etc.)
-
-    Returns:
-        bool: True if price is within desired value area, False otherwise
+def check_price_in_value_area(current_price, va_high, va_low, poc_price, option=None):
     """
-    if current_price is None:
-        return True  # Can't filter without price, so allow it
+    Check if current price meets the selected criteria relative to value area
 
-    # Extract option value if it's a tuple
-    if isinstance(option, tuple) and len(option) > 0:
-        option_value = option[0]
-    else:
-        option_value = option
+    Note: This now considers value areas and POC calculated from buy volume only
+    """
+    if current_price is None or va_high is None or va_low is None or poc_price is None:
+        return False
 
-    # Check different filtering options
-    if option_value == "va_high":
-        # For "inside VA" filter: price must be BETWEEN va_low and va_high
-        return va_low <= current_price <= va_high
-    elif option_value == "poc_price":
-        # For "below POC" filter: price must be below POC
+    if option == "below_poc":
         return current_price < poc_price
-
-    # No filtering or unknown option
-    return True
+    elif option == "at_poc":
+        # Within 0.5% of POC
+        return abs(current_price - poc_price) / poc_price < 0.005
+    elif option == "above_poc":
+        return current_price > poc_price
+    elif option == "below_va":
+        return current_price < va_low
+    elif option == "in_va":
+        return va_low <= current_price <= va_high
+    elif option == "above_va":
+        return current_price > va_high
+    else:
+        # No filtering if no option selected
+        return True
