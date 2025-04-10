@@ -570,188 +570,38 @@ class ReportGenerator:
         return href
 
     def create_monkey_patches(self, chart_generator, sentiment_analyzer):
-        """Create monkey patches for chart and news capture
-
-        Args:
-            chart_generator: The chart generator instance
-            sentiment_analyzer: The sentiment analyzer instance
-
-        Returns:
-            tuple: Original methods that were patched
-        """
+        """Create monkey patches to capture data during analysis"""
         info("Creating monkey patches for data capture")
 
-        # Patch chart display method
-        original_display_market_profile_chart = (
-            chart_generator.candlestick_charts._display_market_profile_chart
-        )
+        # Store original methods
+        original_display_chart = chart_generator._display_market_profile_chart
+        original_display_news = sentiment_analyzer.display_news_without_sentiment
 
-        def patched_display_market_profile_chart(
-            self, ticker_symbol, data, va_high, va_low, poc_price
+        # Replace with instrumented versions
+        def instrumented_display_chart(
+            ticker_symbol, data, va_high, va_low, poc_price, option=None
         ):
-            """Patch to capture chart data before displaying it"""
-            try:
-                info(f"Capturing chart for {ticker_symbol} before display")
+            # Capture data for reporting - use charts_data instead of captured_chart_data
+            self.charts_data[ticker_symbol] = {
+                "data": data.copy() if data is not None else None,
+                "va_high": va_high,
+                "va_low": va_low,
+                "poc_price": poc_price,
+                "option": option,
+            }
+            # Call original method
+            return original_display_chart(
+                ticker_symbol, data, va_high, va_low, poc_price, option
+            )
 
-                # Create a figure for capturing that matches the actual chart style
-                fig = plt.figure(figsize=(12, 9))
-                gs = GridSpec(
-                    5,
-                    5,
-                    figure=fig,
-                    height_ratios=[3, 3, 3, 1.5, 1.5],
-                    width_ratios=[0.12, 0.88, 0.88, 0.88, 1],
-                )
+        def instrumented_display_news(ticker_symbol):
+            # Original method already returns news, just call it
+            result = original_display_news(ticker_symbol)
+            # Store the result in our capture - use news_data instead of captured_news_data
+            if result is not None:
+                self.news_data[ticker_symbol] = result
+            return result
 
-                # Set up the layout similar to the actual display
-                ax1 = fig.add_subplot(gs[0:3, 1:4])  # Main price chart
-                ax_volume = fig.add_subplot(gs[3:5, 1:4], sharex=ax1)  # Volume chart
-                ax2 = fig.add_subplot(gs[0:3, 4], sharey=ax1)  # Volume profile
-
-                plt.style.use("dark_background")
-
-                # Plot candlestick chart with a cleaner style
-                mc = mpf.make_marketcolors(
-                    up="#54ff54",  # Green for up days
-                    down="#ff5454",  # Red for down days
-                    edge="inherit",
-                    wick="inherit",
-                    volume={"up": "#54ff54", "down": "#ff5454"},
-                )
-                custom_style = mpf.make_mpf_style(
-                    marketcolors=mc, gridstyle=":", y_on_right=False
-                )
-
-                # If we have data, plot it
-                if not data.empty:
-                    mpf.plot(
-                        data,
-                        type="candle",
-                        style=custom_style,
-                        ax=ax1,
-                        volume=ax_volume,
-                        show_nontrading=False,
-                    )
-
-                    # Add POC and Value Area lines
-                    ax1.axhline(
-                        y=poc_price,
-                        color="#ff5050",
-                        linestyle="dashed",
-                        linewidth=2,
-                        label="POC",
-                    )
-                    ax1.axhline(
-                        y=va_high,
-                        color="#5050ff",
-                        linestyle="dashed",
-                        linewidth=1.5,
-                        label="VA High",
-                    )
-                    ax1.axhline(
-                        y=va_low,
-                        color="#5050ff",
-                        linestyle="dashed",
-                        linewidth=1.5,
-                        label="VA Low",
-                    )
-
-                    # Add a legend
-                    ax1.legend(["POC", "VA High", "VA Low"], loc="upper left")
-
-                # Add title
-                fig.suptitle(
-                    f"{ticker_symbol} - Price Analysis",
-                    fontsize=16,
-                    color="white",
-                )
-
-                # Capture the chart for the report
-                self.capture_chart(ticker_symbol, fig)
-                plt.close(fig)
-
-                # Now call the original method to display in Streamlit
-                return original_display_market_profile_chart(
-                    ticker_symbol, data, va_high, va_low, poc_price
-                )
-
-            except Exception as e:
-                error(f"Error in chart capture: {str(e)}")
-                error(traceback.format_exc())
-                # Still try to display the original chart if capture fails
-                return original_display_market_profile_chart(
-                    ticker_symbol, data, va_high, va_low, poc_price
-                )
-
-        # Bind the method to this instance
-        patched_display_market_profile_chart = (
-            patched_display_market_profile_chart.__get__(self)
-        )
-
-        # Apply the patch
-        chart_generator.candlestick_charts._display_market_profile_chart = (
-            patched_display_market_profile_chart
-        )
-
-        # Patch news display method
-        original_display_news_without_sentiment = (
-            sentiment_analyzer.display_news_without_sentiment
-        )
-
-        def patched_display_news_without_sentiment(self, ticker_symbol):
-            """Patch to capture news data before displaying it"""
-            try:
-                info(f"Getting news for {ticker_symbol} for capture")
-
-                # Get news data
-                news_items = sentiment_analyzer.get_news_articles(ticker_symbol)
-
-                # Capture the news for the report
-                if news_items:
-                    # If sentiment analyzer has a sentiment analysis method, use it
-                    enhanced_items = []
-                    for item in news_items:
-                        enhanced_item = item.copy()
-
-                        # Try to get sentiment if it's not already included
-                        if "sentiment" not in enhanced_item and hasattr(
-                            sentiment_analyzer, "analyze_sentiment"
-                        ):
-                            try:
-                                sentiment = sentiment_analyzer.analyze_sentiment(
-                                    item.get("title", "")
-                                    + " "
-                                    + item.get("summary", "")
-                                )
-                                enhanced_item["sentiment"] = sentiment
-                            except:
-                                # If sentiment analysis fails, continue without it
-                                pass
-
-                        enhanced_items.append(enhanced_item)
-
-                    self.capture_news(ticker_symbol, enhanced_items)
-
-                # Call the original method to display the news in Streamlit
-                return original_display_news_without_sentiment(ticker_symbol)
-
-            except Exception as e:
-                error(f"Error in news capture for {ticker_symbol}: {str(e)}")
-                error(traceback.format_exc())
-                # Still try to display the original news if capture fails
-                return original_display_news_without_sentiment(ticker_symbol)
-
-        # Bind the method to this instance
-        patched_display_news_without_sentiment = (
-            patched_display_news_without_sentiment.__get__(self)
-        )
-
-        # Apply the patch
-        sentiment_analyzer.display_news_without_sentiment = (
-            patched_display_news_without_sentiment
-        )
-
-        return (
-            original_display_market_profile_chart,
-            original_display_news_without_sentiment,
-        )
+        # Apply the monkey patches
+        chart_generator._display_market_profile_chart = instrumented_display_chart
+        sentiment_analyzer.display_news_without_sentiment = instrumented_display_news

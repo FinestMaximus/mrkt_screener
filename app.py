@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 from data.tickers_yf_fetcher import DataFetcher
-from presentation.charts import ChartGenerator
 from utils.helpers import get_date_range
 import traceback
 from utils.logger import info, debug, warning, error, critical
@@ -12,6 +11,7 @@ from reporting import ReportGenerator
 from presentation.sidebar import SidebarManager
 from presentation.dashboard import DashboardManager
 from presentation.styles import apply_custom_styling
+from presentation.charts import CandlestickCharts
 
 
 # Configure page
@@ -232,13 +232,13 @@ def main():
                 try:
                     info("Generating candle charts")
 
-                    # Create required analyzer instances for ChartGenerator
-                    info("Creating analyzer instances for ChartGenerator")
+                    # Create required analyzer instances for CandlestickCharts
+                    info("Creating analyzer instances for CandlestickCharts")
                     market_profile_analyzer = MarketProfileAnalyzer()
                     sentiment_analyzer = SentimentAnalyzer()
 
-                    # Initialize ChartGenerator with required parameters
-                    chart_generator = ChartGenerator(
+                    # Initialize CandlestickCharts with required parameters
+                    chart_generator = CandlestickCharts(
                         data_fetcher,
                         market_profile_analyzer,
                         sentiment_analyzer,

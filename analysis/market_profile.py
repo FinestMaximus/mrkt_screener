@@ -1,4 +1,3 @@
-from market_profile import MarketProfile
 from utils.logger import info, debug, warning, error
 import pandas as pd
 import numpy as np
@@ -7,8 +6,24 @@ import numpy as np
 class MarketProfileAnalyzer:
     """Class for analyzing market profiles and value areas"""
 
-    def calculate_market_profile(self, data):
-        """Calculate market profile metrics from price data"""
+    def __init__(self):
+        """Initialize the Market Profile Analyzer"""
+        pass
+
+    def calculate_market_profile(self, data, value_area_volume_percent=0.7):
+        """
+        Calculate the market profile including Point of Control and Value Area
+
+        Parameters:
+        - data: DataFrame with OHLC and volume data
+        - value_area_volume_percent: Percentage of volume to include in value area (default: 0.7 or 70%)
+
+        Returns:
+        - va_high: Value Area High price
+        - va_low: Value Area Low price
+        - poc_price: Point of Control price
+        - volume_profile: Dictionary with volume profile data
+        """
         if data.empty:
             warning("Cannot calculate market profile with empty data")
             return None, None, None, None
@@ -16,62 +31,100 @@ class MarketProfileAnalyzer:
         try:
             info("Calculating market profile metrics.")
 
-            # Original approach using the MarketProfile library for total volume
-            # mp = MarketProfile(data)
-            # mp_slice = mp[data.index.min() : data.index.max()]
-            # va_low, va_high = mp_slice.value_area
-            # poc_price = mp_slice.poc_price
-            # profile_range = mp_slice.profile_range
+            # Calculate price bins and volume distribution
+            price_min = min(data["Low"].min(), data["Close"].min())
+            price_max = max(data["High"].max(), data["Close"].max())
 
-            # NEW APPROACH: Calculate POC and value areas using sell volume only
-            price_levels, bin_size, _ = self._calculate_price_bins(data)
-            buy_volume_by_price, sell_volume_by_price = (
-                self._distribute_volume_by_price(data, price_levels, bin_size)
-            )
+            # Create price bins with appropriate granularity
+            price_range = price_max - price_min
+            # Adjust bin_count for appropriate granularity based on price
+            bin_count = max(50, min(200, int(price_range * 100)))
 
-            # Find POC price (price level with highest SELL volume)
-            max_vol_idx = np.argmax(sell_volume_by_price)
-            poc_price = (price_levels[max_vol_idx] + price_levels[max_vol_idx + 1]) / 2
+            # Create price bins
+            price_bins = np.linspace(price_min, price_max, bin_count)
+            bin_size = price_bins[1] - price_bins[0]
 
-            # Calculate value area (70% of total sell volume)
-            total_sell_volume = sum(sell_volume_by_price)
-            target_volume = total_sell_volume * 0.7
+            # Initialize volume arrays
+            volume_by_price = np.zeros(len(price_bins) - 1)
 
-            # Start from POC and work outward
-            cum_volume = sell_volume_by_price[max_vol_idx]
-            lower_idx = max_vol_idx
-            upper_idx = max_vol_idx
+            # Distribute volume across price bins
+            for i, row in data.iterrows():
+                # For each candle, distribute its volume across the price range it covered
+                candle_low = row["Low"]
+                candle_high = row["High"]
+                candle_volume = row["Volume"]
 
-            while cum_volume < target_volume and (
-                lower_idx > 0 or upper_idx < len(sell_volume_by_price) - 1
-            ):
-                # Compare volumes at next higher and lower levels
-                lower_vol = sell_volume_by_price[lower_idx - 1] if lower_idx > 0 else 0
-                upper_vol = (
-                    sell_volume_by_price[upper_idx + 1]
-                    if upper_idx < len(sell_volume_by_price) - 1
-                    else 0
+                # Find which bins this candle spans
+                low_bin = max(0, int((candle_low - price_min) / bin_size))
+                high_bin = min(
+                    len(price_bins) - 2, int((candle_high - price_min) / bin_size)
                 )
 
-                # Add the level with higher volume
-                if lower_vol > upper_vol and lower_idx > 0:
-                    lower_idx -= 1
-                    cum_volume += lower_vol
-                elif upper_idx < len(sell_volume_by_price) - 1:
-                    upper_idx += 1
-                    cum_volume += upper_vol
-                else:
-                    break
+                # Distribute volume proportionally across the spanned bins
+                span = high_bin - low_bin + 1
+                if span > 0:
+                    volume_per_bin = candle_volume / span
+                    for bin_idx in range(low_bin, high_bin + 1):
+                        volume_by_price[bin_idx] += volume_per_bin
 
-            # Calculate value area high and low based on sell volume
-            va_high = price_levels[upper_idx + 1]
-            va_low = price_levels[lower_idx]
-            profile_range = (price_levels[0], price_levels[-1])
+            # Find POC (Point of Control) - price with highest volume
+            poc_bin_idx = np.argmax(volume_by_price)
+            poc_price = price_bins[poc_bin_idx] + bin_size / 2
+
+            # Calculate Value Area using the standard method
+            total_volume = np.sum(volume_by_price)
+            target_volume = total_volume * value_area_volume_percent
+
+            # Start with POC
+            current_volume = volume_by_price[poc_bin_idx]
+            va_bins = [poc_bin_idx]
+
+            # Expand outward until we reach target volume
+            above_idx = poc_bin_idx + 1
+            below_idx = poc_bin_idx - 1
+
+            while current_volume < target_volume and (
+                below_idx >= 0 or above_idx < len(volume_by_price)
+            ):
+                # Check volume above and below to decide which direction to expand
+                vol_above = (
+                    volume_by_price[above_idx]
+                    if above_idx < len(volume_by_price)
+                    else 0
+                )
+                vol_below = volume_by_price[below_idx] if below_idx >= 0 else 0
+
+                # Add the side with higher volume
+                if vol_above > vol_below:
+                    va_bins.append(above_idx)
+                    current_volume += vol_above
+                    above_idx += 1
+                else:
+                    va_bins.append(below_idx)
+                    current_volume += vol_below
+                    below_idx -= 1
+
+            # Determine VA high and low from bins
+            va_high_bin = max(va_bins)
+            va_low_bin = min(va_bins)
+
+            va_high = price_bins[va_high_bin] + bin_size
+            va_low = price_bins[va_low_bin]
 
             info(
-                f"Market profile calculated using sell volume: VA High: {va_high}, VA Low: {va_low}, POC Price: {poc_price}, Profile Range: {profile_range}"
+                f"POC: {poc_price:.2f}, VA High: {va_high:.2f}, VA Low: {va_low:.2f}, "
+                f"Volume %: {(current_volume/total_volume)*100:.1f}%"
             )
-            return va_high, va_low, poc_price, profile_range
+
+            # Create volume profile structure to return
+            volume_profile = {
+                "price_bins": price_bins,
+                "volume_by_price": volume_by_price,
+                "bin_size": bin_size,
+                "total_volume": total_volume,
+            }
+
+            return va_high, va_low, poc_price, volume_profile
         except Exception as e:
             error(f"Error calculating market profile: {e}")
             return None, None, None, None

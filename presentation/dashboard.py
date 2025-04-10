@@ -229,6 +229,85 @@ class DashboardManager:
                     "No Return on Equity column found in dataframe. ROE filter not applied."
                 )
 
+        # Apply "Dividend Payers Only" filter if enabled
+        if "dividend_payers_only" in filters and filters["dividend_payers_only"]:
+            debug("Filtering to show only dividend paying companies")
+
+            # Try different Dividend Yield column names
+            div_yield_columns = [
+                "dividendYield",
+                "fiveYearAvgDividendYield",
+                "trailingAnnualDividendYield",
+            ]
+
+            # Log the available columns for debugging
+            debug(f"Available columns in dataframe: {df.columns.tolist()}")
+
+            # Check which dividend columns actually exist in the dataframe
+            existing_div_columns = [
+                col for col in div_yield_columns if col in df.columns
+            ]
+            if existing_div_columns:
+                info(f"Found dividend columns: {existing_div_columns}")
+
+                # For debugging, show sample values from the first column
+                sample_col = existing_div_columns[0]
+                sample_values = df[sample_col].head(10).tolist()
+                debug(f"Sample {sample_col} values: {sample_values}")
+            else:
+                warning("No dividend yield columns found in dataframe!")
+
+            for div_yield_col in div_yield_columns:
+                if div_yield_col in df.columns:
+                    # Show stats about this column before conversion
+                    non_null_before = df[div_yield_col].notnull().sum()
+                    debug(
+                        f"Column {div_yield_col} has {non_null_before} non-null values before conversion"
+                    )
+
+                    # Convert to numeric to handle any non-numeric values
+                    df[div_yield_col] = pd.to_numeric(
+                        df[div_yield_col], errors="coerce"
+                    )
+
+                    # Show stats after conversion
+                    non_null_after = df[div_yield_col].notnull().sum()
+                    debug(
+                        f"Column {div_yield_col} has {non_null_after} non-null values after conversion"
+                    )
+
+                    if non_null_after == 0:
+                        warning(
+                            f"All values in {div_yield_col} became NaN after conversion to numeric!"
+                        )
+                        continue
+
+                    # Filter for companies with positive dividend yield
+                    div_payers_mask = df[div_yield_col].notnull() & (
+                        df[div_yield_col] > 0
+                    )
+
+                    # Log how many companies pay dividends vs total
+                    payers_count = div_payers_mask.sum()
+                    info(
+                        f"Found {payers_count} out of {len(df)} companies with positive {div_yield_col}"
+                    )
+
+                    if payers_count == 0:
+                        warning(
+                            f"No companies found with positive {div_yield_col}! Not applying filter."
+                        )
+                        continue
+
+                    # Apply the filter
+                    df = df[div_payers_mask]
+                    info(f"After dividend payers only filter: {len(df)} rows remaining")
+                    break
+            else:
+                warning(
+                    "No usable dividend yield column found. 'Dividend Payers Only' filter not applied."
+                )
+
         # Apply Dividend Yield filter if enabled
         if "div_yield_filter" in filters and filters["div_yield_filter"]["enabled"]:
             div_yield_min = (
@@ -238,20 +317,52 @@ class DashboardManager:
                 filters["div_yield_filter"]["max"] / 100.0
             )  # Convert percentage to decimal
 
+            info(
+                f"Dividend yield filter enabled with min={div_yield_min}, max={div_yield_max}"
+            )
+
             # Try different Dividend Yield column names
-            div_yield_columns = ["dividendYield", "fiveYearAvgDividendYield"]
+            div_yield_columns = [
+                "dividendYield",
+                "fiveYearAvgDividendYield",
+                "trailingAnnualDividendYield",
+            ]
+
+            # For debugging, show data about each column
+            for col in div_yield_columns:
+                if col in df.columns:
+                    non_null = df[col].notnull().sum()
+                    debug(
+                        f"Column {col}: {non_null}/{len(df)} non-null values ({non_null/len(df)*100:.1f}%)"
+                    )
+                    if non_null > 0:
+                        debug(f"  Range: {df[col].min()} to {df[col].max()}")
+                        debug(f"  Sample values: {df[col].dropna().head(5).tolist()}")
+
             for div_yield_col in div_yield_columns:
-                if div_yield_col in df.columns:
+                if (
+                    div_yield_col in df.columns
+                    and df[div_yield_col].notnull().sum() > 0
+                ):
                     debug(
                         f"Filtering by {div_yield_col} between {div_yield_min} and {div_yield_max}"
                     )
+
+                    # Save the dataframe length before filtering
+                    before_filter = len(df)
+
+                    # Apply the filter
                     df = self._apply_range_filter(
                         df, div_yield_col, div_yield_min, div_yield_max
+                    )
+
+                    info(
+                        f"After {div_yield_col} filter: {len(df)} rows remaining (removed {before_filter - len(df)})"
                     )
                     break
             else:
                 warning(
-                    "No Dividend Yield column found in dataframe. Dividend filter not applied."
+                    "No usable Dividend Yield column found in dataframe. Dividend yield filter not applied."
                 )
 
         info(
@@ -270,10 +381,30 @@ class DashboardManager:
         """Apply min/max range filter to a dataframe column with improved debugging"""
         before_count = len(df)
 
+        # Debug info about the column before filtering
+        debug(f"Filtering column '{column}' with range: {min_value} to {max_value}")
+        debug(
+            f"Column stats before filter - non-null: {df[column].notnull().sum()}, min: {df[column].min()}, max: {df[column].max()}"
+        )
+
+        # Make sure the column is numeric
+        if not pd.api.types.is_numeric_dtype(df[column]):
+            debug(f"Converting column '{column}' to numeric type")
+            df[column] = pd.to_numeric(df[column], errors="coerce")
+
         # Create masks for min and max filtering
         if min_value > 0:
             # Only filter by minimum if it's greater than zero
             min_mask = df[column].notnull() & (df[column] >= min_value)
+            matching_min = min_mask.sum()
+            debug(f"Min filter ({column} >= {min_value}): {matching_min} rows match")
+
+            if matching_min == 0:
+                warning(f"No rows match minimum filter of {column} >= {min_value}")
+                # Show some sample values to help diagnose the issue
+                sample_values = df[column].dropna().head(10).tolist()
+                debug(f"Sample values from {column}: {sample_values}")
+
             df = df[min_mask]
             mid_count = len(df)
             debug(
@@ -285,6 +416,9 @@ class DashboardManager:
         # Apply max filter if it's a reasonable limiting value
         if max_value < 100:  # Only apply max filter if it's set to a limiting value
             max_mask = df[column].notnull() & (df[column] <= max_value)
+            matching_max = max_mask.sum()
+            debug(f"Max filter ({column} <= {max_value}): {matching_max} rows match")
+
             df = df[max_mask]
             after_count = len(df)
             debug(

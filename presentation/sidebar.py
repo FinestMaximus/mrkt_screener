@@ -2,6 +2,14 @@ import streamlit as st
 import pandas as pd
 from data.fear_greed_indicator import FearGreedIndicator
 from utils.logger import info, debug, warning, error
+from presentation.vix_chart import VIXChartManager
+from presentation.pe_chart import PERatioChartManager
+from presentation.fear_greed_chart import FearGreedChartManager
+from presentation.styles import (
+    apply_sidebar_styling,
+    style_metric_compact,
+    style_metric_value_with_note,
+)
 
 
 class SidebarManager:
@@ -18,6 +26,11 @@ class SidebarManager:
             "cash_flow": "#FBC02D",  # Yellow
             "growth": "#8E24AA",  # Purple
         }
+
+        # Initialize chart managers
+        self.fear_greed_manager = FearGreedChartManager()
+        self.vix_manager = VIXChartManager()
+        self.pe_manager = PERatioChartManager()
 
         # Initialize session state for tracking filter changes
         if "previous_config" not in st.session_state:
@@ -90,38 +103,36 @@ class SidebarManager:
         return False
 
     def display_market_sentiment(self):
-        """Display market sentiment in the sidebar"""
-        info("Fetching market sentiment data")
-        percentage, sentiment, color_code = (
-            FearGreedIndicator().fetch_market_sentiment()
-        )
+        """Display market sentiment indicators in the sidebar"""
+        st.sidebar.markdown("### Market Sentiment")
 
-        if percentage and sentiment and color_code:
-            info(f"Market sentiment data retrieved: {sentiment} ({percentage})")
-            info_text = "% Stocks in the market that are in an uptrend trading above their 6 month exponential moving average (EMA)."
+        # Get the days_back from the config
+        days_back = st.session_state.get(
+            "days_back", 2555
+        )  # Default to ~7 years if not set
 
-            st.markdown("### Market Sentiment")
-            st.markdown(
-                f"<div style='background-color: rgba(0,0,0,0.05); padding: 15px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);'>",
-                unsafe_allow_html=True,
-            )
-            col1, col2 = st.columns(2)
+        # Create columns for the charts
+        col1 = st.sidebar.container()
+        col2 = st.sidebar.container()
+        col3 = st.sidebar.container()
 
-            with col1:
-                st.metric(label="Sentiment:", value=percentage, help=info_text)
+        # Display Fear & Greed Index chart in col1
+        with col1:
+            self.fear_greed_manager.display_fear_greed_chart_compact(days=days_back)
 
-            with col2:
-                st.markdown(
-                    f"<h3 style='color: {color_code}; margin-top: 10px; text-align: center;'>{sentiment}</h3>",
-                    unsafe_allow_html=True,
-                )
-            st.markdown("</div>", unsafe_allow_html=True)
-        else:
-            warning("Failed to retrieve market sentiment data")
-            st.warning("Market sentiment data currently unavailable")
+        # Display VIX in col2
+        with col2:
+            self.vix_manager.display_vix_chart_compact(days=days_back)
+
+        # Display PE Ratio in col3
+        with col3:
+            self.pe_manager.display_pe_chart_compact(days=days_back)
 
     def get_config_inputs(self):
         """Get configuration inputs from sidebar"""
+        # Apply sidebar filter styling
+        apply_sidebar_styling()
+
         info("Getting configuration inputs from sidebar")
         st.markdown(
             "<h3 style='margin-top: 25px;'>Configuration</h3>", unsafe_allow_html=True
@@ -132,7 +143,7 @@ class SidebarManager:
         )
 
         # Load tickers directly from CSV file
-        file_path = "tickers.csv"
+        file_path = "neomerc.csv"
         try:
             info(f"Loading tickers from {file_path}")
             # Read the CSV file with comment lines handled properly
@@ -167,6 +178,9 @@ class SidebarManager:
             help="Number of days to look back for historical data analysis",
         )
         debug(f"Selected days_back: {days_back}")
+
+        # Store in session state for use in charts
+        st.session_state["days_back"] = days_back
 
         # Price type selection
         st.markdown("#### Price Area Analysis")
@@ -206,54 +220,6 @@ class SidebarManager:
             )
             if filter_desc:
                 st.info(filter_desc)
-
-        # Custom CSS for filters
-        st.markdown(
-            """
-        <style>
-        .filter-section {
-            background-color: rgba(0,0,0,0.03);
-            border-radius: 8px;
-            padding: 12px 15px;
-            margin-bottom: 15px;
-            border-left: 4px solid #ccc;
-            box-shadow: 0 1px 2px rgba(0,0,0,0.05);
-        }
-        .filter-header {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 10px;
-            color: #333;
-        }
-        .filter-enabled {
-            opacity: 1;
-        }
-        .filter-disabled {
-            opacity: 0.6;
-        }
-        .filter-row {
-            display: flex;
-            align-items: center;
-            margin-bottom: 8px;
-            transition: all 0.2s ease;
-        }
-        .filter-checkbox {
-            margin-right: 10px;
-        }
-        .info-icon {
-            color: #888;
-            font-size: 0.8rem;
-            margin-left: 5px;
-        }
-        .filter-values {
-            font-size: 0.8rem;
-            color: #555;
-            margin-top: 3px;
-        }
-        </style>
-        """,
-            unsafe_allow_html=True,
-        )
 
         # Improved Filter Functions
         def create_filter_section(title, color, filters_dict):
@@ -409,6 +375,13 @@ class SidebarManager:
 
         # Cash Flow Filters Section - Add back Dividend Yield filter
         with st.expander("Cash Flow Filters", expanded=False):
+            # Add a "Dividend Payers Only" checkbox
+            dividend_payers_only = st.checkbox(
+                "Show Only Dividend Paying Companies",
+                value=False,
+                help="When enabled, only companies that pay dividends will be shown (dividend yield > 0)",
+            )
+
             # Dividend Yield filter
             div_yield_filter = create_enhanced_filter(
                 "Dividend Yield",
@@ -449,4 +422,5 @@ class SidebarManager:
             "roe_filter": roe_filter,
             "div_yield_filter": div_yield_filter,
             "peg_filter": peg_filter,
+            "dividend_payers_only": dividend_payers_only,
         }

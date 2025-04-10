@@ -19,6 +19,10 @@ class FearGreedIndicator:
             # Additional user agents can be included as needed
         ]
 
+    def get_random_user_agent(self):
+        """Return a random user agent from the list"""
+        return random.choice(self.user_agents)
+
     def fetch_market_sentiment(self):
         """
         Fetches market sentiment data from a given URL.
@@ -37,7 +41,7 @@ class FearGreedIndicator:
             )
 
             # Use a random user agent to reduce chance of being blocked
-            headers = {"User-Agent": random.choice(self.user_agents)}
+            headers = {"User-Agent": self.get_random_user_agent()}
             response = requests.get(url, headers=headers)
 
             debug("Received response with status code: %s", response.status_code)

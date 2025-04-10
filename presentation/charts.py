@@ -5,6 +5,8 @@ import numpy as np
 import yfinance as yf
 import matplotlib.dates as mdates
 from scipy import stats
+import pandas as pd
+from matplotlib.ticker import AutoLocator
 
 # Import custom logger functions
 from utils.logger import info, debug, warning, error, critical
@@ -32,247 +34,6 @@ from utils.helpers import (
 class CandlestickCharts:
     """Class for handling candlestick chart functionality"""
 
-    def __init__(self, parent):
-        """Initialize with reference to parent ChartGenerator"""
-        self.parent = parent
-
-    def _identify_price_levels(self, data, window=10, prominence=0.01):
-        """
-        Identify resistance and support levels based on price peaks and valleys
-
-        Parameters:
-        - data: OHLC price data
-        - window: lookback window for peak detection
-        - prominence: minimum relative height to be considered a significant peak
-
-        Returns:
-        - resistance_levels: list of detected resistance prices
-        - support_levels: list of detected support prices
-        """
-        highs = data["High"].values
-        lows = data["Low"].values
-
-        resistance_levels = []
-        support_levels = []
-
-        # Find peaks (resistance) and valleys (support) in a single pass
-        for i in range(window, len(highs) - window):
-            # Check for resistance (peaks in highs)
-            if highs[i] == max(highs[i - window : i + window + 1]):
-                prominence_value = (highs[i] - np.mean(highs)) / np.mean(highs)
-                if prominence_value >= prominence:
-                    resistance_levels.append(highs[i])
-
-            # Check for support (valleys in lows)
-            if lows[i] == min(lows[i - window : i + window + 1]):
-                prominence_value = (np.mean(lows) - lows[i]) / np.mean(lows)
-                if prominence_value >= prominence:
-                    support_levels.append(lows[i])
-
-        # Consolidate similar levels
-        resistance_levels = self._consolidate_price_levels(resistance_levels)
-        support_levels = self._consolidate_price_levels(support_levels)
-
-        return resistance_levels, support_levels
-
-    def _consolidate_price_levels(self, levels, threshold=0.005):
-        """
-        Consolidate similar price levels to avoid cluttering the chart
-        """
-        if not levels:
-            return []
-
-        levels = sorted(levels)
-        consolidated = []
-
-        current_group = [levels[0]]
-
-        for i in range(1, len(levels)):
-            if abs(levels[i] - current_group[0]) / current_group[0] <= threshold:
-                current_group.append(levels[i])
-            else:
-                # Add average of current group
-                consolidated.append(sum(current_group) / len(current_group))
-                current_group = [levels[i]]
-
-        # Add the last group
-        if current_group:
-            consolidated.append(sum(current_group) / len(current_group))
-
-        return consolidated
-
-    def _calculate_trend_lines(self, data, days=30):
-        """
-        Calculate both up and down trend lines using linear regression
-
-        Parameters:
-        - data: OHLC price data
-        - days: number of days to use for trend calculation
-
-        Returns:
-        - Tuple containing parameters for both trend lines:
-          (up_slope, up_intercept, down_slope, down_intercept, x_range, date_index)
-        """
-        # Use only the specified number of most recent days
-        recent_data = data.iloc[-days:].copy()
-
-        # Convert index to numeric for regression
-        x = np.arange(len(recent_data))
-
-        # Calculate uptrend using highs
-        up_slope, up_intercept, _, _, _ = stats.linregress(
-            x, recent_data["High"].values
-        )
-
-        # Calculate downtrend using lows
-        down_slope, down_intercept, _, _, _ = stats.linregress(
-            x, recent_data["Low"].values
-        )
-
-        return up_slope, up_intercept, down_slope, down_intercept, x, recent_data.index
-
-    def _display_market_profile_chart(
-        self, ticker_symbol, data, va_high, va_low, poc_price, option=None
-    ):
-        """Display market profile chart with improved layout and styling"""
-        # Calculate price bins and distribute volume
-        price_levels, bin_size, _ = calculate_price_bins(data)
-        buy_volume_by_price, sell_volume_by_price = distribute_volume_by_price(
-            data, price_levels, bin_size
-        )
-
-        # Get current price
-        current_price = self.parent._get_current_price(ticker_symbol, data)
-
-        # Check if price meets filtering criteria
-        if not check_price_in_value_area(
-            current_price, va_high, va_low, poc_price, option
-        ):
-            info(f"{ticker_symbol} - filtered out based on price criteria")
-            return 0
-
-        # Setup chart components
-        fig, gs, axes = setup_chart_grid(fig_size=(12, 9), is_volume_profile=True)
-
-        # Draw the main candlestick chart
-        style_candlestick_chart(axes["price"], axes["volume"], plt.gcf(), data)
-
-        # Properly format the date axis based on the data timespan
-        days_span = (data.index[-1] - data.index[0]).days
-
-        # Format x-axis date labels based on the number of days
-        if days_span > 1095:  # More than 3 years
-            date_format = mdates.DateFormatter("%b\n%Y")  # Month and Year
-            locator = mdates.MonthLocator(interval=3)  # Show every 3 months
-        elif days_span > 365:  # More than 1 year
-            date_format = mdates.DateFormatter("%b\n%Y")  # Month and Year
-            locator = mdates.MonthLocator(interval=2)  # Show every 2 months
-        elif days_span > 180:  # More than 6 months
-            date_format = mdates.DateFormatter("%b\n%Y")
-            locator = mdates.MonthLocator(interval=1)  # Show every month
-        else:  # Less than 6 months
-            date_format = mdates.DateFormatter("%d\n%b")  # Day and Month
-            locator = mdates.WeekdayLocator(interval=2)  # Show every 2 weeks
-
-        # Apply the formatting to both axes
-        for ax in [axes["price"], axes["volume"]]:
-            ax.xaxis.set_major_formatter(date_format)
-            ax.xaxis.set_major_locator(locator)
-
-        # Add price analysis lines and indicators
-        poc_line, va_high_line, va_low_line, current_line = style_price_indicators(
-            axes["price"], poc_price, va_high, va_low, current_price
-        )
-
-        # Add resistance and support levels
-        resistance_levels, support_levels = self._identify_price_levels(data)
-
-        info(
-            f"{ticker_symbol} - Found {len(resistance_levels)} resistance levels and {len(support_levels)} support levels"
-        )
-
-        # Draw resistance levels
-        for i, level in enumerate(resistance_levels):
-            label = f"Resistance {level:.2f}" if i == 0 else ""
-            axes["price"].axhline(
-                y=level,
-                color="red",
-                linestyle="-.",
-                linewidth=1.5,
-                alpha=0.8,
-                label=label,
-            )
-
-        # Draw support levels
-        for i, level in enumerate(support_levels):
-            label = f"Support {level:.2f}" if i == 0 else ""
-            axes["price"].axhline(
-                y=level,
-                color="green",
-                linestyle="-.",
-                linewidth=1.5,
-                alpha=0.8,
-                label=label,
-            )
-
-        # Add trend lines if we have enough data
-        if len(data) >= 30:
-            up_slope, up_intercept, down_slope, down_intercept, x_range, date_index = (
-                self._calculate_trend_lines(data)
-            )
-
-            # Plot trend lines if they have meaningful slopes
-            x_dates = mdates.date2num(date_index.to_pydatetime())
-
-            if abs(up_slope) > 0.001:
-                y_uptrend = up_slope * x_range + up_intercept
-                axes["price"].plot(
-                    x_dates, y_uptrend, "b-", linewidth=2, alpha=0.9, label="Uptrend"
-                )
-                info(f"{ticker_symbol} - Added uptrend line with slope {up_slope:.4f}")
-
-            if abs(down_slope) > 0.001:
-                y_downtrend = down_slope * x_range + down_intercept
-                axes["price"].plot(
-                    x_dates,
-                    y_downtrend,
-                    "r-",
-                    linewidth=2,
-                    alpha=0.9,
-                    label="Downtrend",
-                )
-                info(
-                    f"{ticker_symbol} - Added downtrend line with slope {down_slope:.4f}"
-                )
-
-        # Add volume profile visualization
-        style_volume_profile(
-            axes["profile"],
-            price_levels,
-            bin_size,
-            buy_volume_by_price,
-            sell_volume_by_price,
-            poc_price,
-        )
-
-        # Finalize chart formatting
-        plt.tight_layout()
-        enhance_chart_aesthetics(axes["price"], price_levels)
-
-        # Check if buy focus regions were detected
-        buy_focus_detected = self.parent._detect_buy_focus_regions(
-            price_levels, bin_size, buy_volume_by_price, poc_price
-        )
-
-        # Set the legend
-        axes["price"].legend(loc="upper left")
-
-        return fig
-
-
-class ChartGenerator:
-    """Class for generating various financial charts and visualizations"""
-
     def __init__(
         self,
         data_fetcher,
@@ -284,7 +45,6 @@ class ChartGenerator:
         self.market_profile_analyzer = market_profile_analyzer
         self.sentiment_analyzer = sentiment_analyzer
         self.metrics_display = FinancialMetricsDisplay()
-        self.candlestick_charts = CandlestickCharts(self)
 
     def _format_business_summary(self, summary):
         """Format business summary for display"""
@@ -349,6 +109,87 @@ class ChartGenerator:
                 return True
         return False
 
+    def _display_market_profile_chart(
+        self, ticker_symbol, data, va_high, va_low, poc_price, option=None
+    ):
+        """Display market profile chart with improved layout and styling"""
+        # Calculate price bins and distribute volume
+        price_levels, bin_size, _ = calculate_price_bins(data)
+        buy_volume_by_price, sell_volume_by_price = distribute_volume_by_price(
+            data, price_levels, bin_size
+        )
+
+        # Get current price
+        current_price = self._get_current_price(ticker_symbol, data)
+
+        # Check if price meets filtering criteria
+        if not check_price_in_value_area(
+            current_price, va_high, va_low, poc_price, option
+        ):
+            info(f"{ticker_symbol} - filtered out based on price criteria")
+            return 0
+
+        # Setup chart components
+        fig, gs, axes = setup_chart_grid(fig_size=(12, 9), is_volume_profile=True)
+
+        # Make sure data index is datetime type
+        if not isinstance(data.index, pd.DatetimeIndex):
+            data.index = pd.to_datetime(data.index)
+
+        # Draw the main candlestick chart
+        style_candlestick_chart(axes["price"], axes["volume"], fig, data)
+
+        # Configure date axis more explicitly
+        date_format = mdates.DateFormatter("%Y-%m-%d")
+        axes["price"].xaxis.set_major_formatter(date_format)
+        axes["volume"].xaxis.set_major_formatter(date_format)
+
+        # Set a reasonable number of ticks
+        axes["price"].xaxis.set_major_locator(AutoLocator())
+        axes["volume"].xaxis.set_major_locator(AutoLocator())
+
+        # Make sure dates are properly interpreted
+        axes["price"].xaxis_date()
+        axes["volume"].xaxis_date()
+
+        # Rotate date labels for better readability
+        fig.autofmt_xdate(rotation=30)
+
+        # Add price analysis lines and indicators
+        poc_line, va_high_line, va_low_line, current_line = style_price_indicators(
+            axes["price"], poc_price, va_high, va_low, current_price
+        )
+
+        # Add volume profile visualization
+        style_volume_profile(
+            axes["profile"],
+            price_levels,
+            bin_size,
+            buy_volume_by_price,
+            sell_volume_by_price,
+            poc_price,
+        )
+
+        # Finalize chart formatting
+        plt.tight_layout()
+        enhance_chart_aesthetics(axes["price"], price_levels)
+
+        # Make a final sync of x-axis limits
+        axes["volume"].set_xlim(axes["price"].get_xlim())
+
+        # Check if buy focus regions were detected
+        buy_focus_detected = self._detect_buy_focus_regions(
+            price_levels, bin_size, buy_volume_by_price, poc_price
+        )
+
+        # Set the legend with enhanced visibility
+        legend = axes["price"].legend(loc="upper left", framealpha=0.9, frameon=True)
+        legend.get_frame().set_facecolor("white")
+        legend.get_frame().set_edgecolor("black")
+        info(f"{ticker_symbol} - Added legend with moving averages")
+
+        return fig
+
     def plot_with_volume_profile(
         self,
         ticker_symbol,
@@ -412,7 +253,7 @@ class ChartGenerator:
                     with col1:
                         # Display the chart in the left column (taking half the width)
                         try:
-                            fig = self.candlestick_charts._display_market_profile_chart(
+                            fig = self._display_market_profile_chart(
                                 ticker_symbol, data, va_high, va_low, poc_price, option
                             )
                             if (
@@ -420,7 +261,7 @@ class ChartGenerator:
                             ):  # Check if figure was returned and not a filter code
                                 st.pyplot(fig)
                         except TypeError:
-                            fig = self.candlestick_charts._display_market_profile_chart(
+                            fig = self._display_market_profile_chart(
                                 ticker_symbol, data, va_high, va_low, poc_price
                             )
                             if (

@@ -236,36 +236,43 @@ class DataFetcher:
                     "trailingPE",
                     "forwardPE",
                     "priceToBook",
-                    "dividendYield",
-                    "beta",
-                    "fiftyTwoWeekLow",
-                    "fiftyTwoWeekHigh",
-                    "fiftyDayAverage",
-                    "twoHundredDayAverage",
-                    "shortRatio",
-                    "profitMargins",
-                    "operatingMargins",
-                    "returnOnAssets",
-                    "returnOnEquity",
-                    "revenueGrowth",
-                    "earningsGrowth",
-                    "totalCash",
-                    "totalDebt",
-                    "debtToEquity",
-                    "currentRatio",
-                    "bookValue",
-                    "priceToSalesTrailing12Months",
-                    "targetMeanPrice",
-                    "recommendationKey",
-                    "averageAnalystRating",
-                    "trailingAnnualDividendYield",
-                    "forwardPegRatio",
+                    "dividendYield",  # Make sure this is included
+                    "trailingAnnualDividendYield",  # Also include this
+                    "fiveYearAvgDividendYield",  # And this
+                    # ... other fields ...
                 ]
 
                 # Populate metrics with available data
                 for field in important_fields:
                     if field in stock_info:
-                        metrics[field] = stock_info[field]
+                        # For dividend fields, ensure they're numeric
+                        if field in [
+                            "dividendYield",
+                            "trailingAnnualDividendYield",
+                            "fiveYearAvgDividendYield",
+                        ]:
+                            try:
+                                value = (
+                                    float(stock_info[field])
+                                    if stock_info[field] is not None
+                                    else None
+                                )
+                                metrics[field] = value
+                                if (
+                                    field == "dividendYield"
+                                    and value is not None
+                                    and value > 0
+                                ):
+                                    debug(
+                                        f"Found dividend paying stock: {ticker.ticker} with yield {value}"
+                                    )
+                            except (ValueError, TypeError):
+                                metrics[field] = None
+                                warning(
+                                    f"Could not convert {field} to number for {ticker.ticker}"
+                                )
+                        else:
+                            metrics[field] = stock_info[field]
                     else:
                         metrics[field] = None
 

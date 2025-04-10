@@ -1,60 +1,137 @@
 ticker,description
-# US-based companies with significant international exposure (vulnerable to tariffs)
+# US DIVIDEND STOCKS BY SECTOR
+
+# Healthcare Sector
+JNJ,Johnson & Johnson - US healthcare giant with 60+ years of dividend increases
+ABBV,AbbVie Inc. - US pharmaceutical company with strong dividend growth
+MRK,Merck & Co - US pharmaceutical company with consistent dividends
+PFE,Pfizer Inc. - US pharmaceutical company with long dividend history
+
+# Consumer Staples Sector
+PG,Procter & Gamble - US consumer goods company with 65+ years of dividend increases
+KO,Coca-Cola Company - US beverage giant with 60+ years of dividend increases
+PEP,PepsiCo Inc. - US food and beverage company with 50+ years of dividend increases
+MO,Altria Group - US tobacco company with high dividend yield
+
+# Energy Sector
+XOM,Exxon Mobil - US energy company with 40+ years of dividend increases
+CVX,Chevron Corporation - US energy company with 35+ years of dividend increases
+
+# Telecommunications Sector
+VZ,Verizon Communications - US telecommunications with high dividend yield
+T,AT&T Inc. - US telecommunications company with high dividend yield
+
+# Technology Sector
+IBM,International Business Machines - US technology company with 25+ years of dividend increases
+CSCO,Cisco Systems - US technology company with growing dividends
+INTC,Intel Corporation - US semiconductor company with consistent dividends
+
+# Industrials Sector
+MMM,3M Company - US industrial conglomerate with 60+ years of dividend increases
+CAT,Caterpillar Inc. - US heavy machinery manufacturer with consistent dividends
+
+# Consumer Discretionary Sector
+MCD,McDonald's Corporation - US fast food giant with 45+ years of dividend increases
+WMT,Walmart Inc. - US retail giant with consistent dividend growth
+HD,Home Depot - US home improvement retailer with strong dividend growth
+STLA,Stellantis N.V. - Global automotive manufacturer with brands including Jeep Chrysler and Fiat
+
+# Financial Sector
+JPM,JPMorgan Chase - US banking giant with strong dividend history
+BAC,Bank of America - US large bank with growing dividends
+WFC,Wells Fargo - US banking company with dividend focus
+C,Citigroup - US global bank with dividend payments
+MS,Morgan Stanley - US investment bank with growing dividends
+GS,Goldman Sachs - US investment bank with dividend history
+BLK,BlackRock - US asset management firm with growing dividends
+AMP,Ameriprise Financial - US financial services with strong dividend growth
+CB,Chubb Ltd - US insurance company with consistent dividend increases
+GL,Globe Life Inc - US insurance company with low payout ratio and consistent increases
+
+# Utilities Sector
+SO,Southern Company - US utility company with high dividend yield
+DUK,Duke Energy - US utility company with consistent dividends
+D,Dominion Energy - US utility company with dividend focus
+NEE,NextEra Energy - US renewable energy utility with dividend growth
+
+# Real Estate Sector (REITs)
+O,Realty Income - US REIT known as "The Monthly Dividend Company"
+SPG,Simon Property Group - US retail REIT with high dividend yield
+WPC,W.P. Carey - US diversified REIT with consistent dividends
+AVB,AvalonBay Communities - US apartment REIT with dividend growth
+PSA,Public Storage - US self-storage REIT with dividend history
+DLR,Digital Realty Trust - US data center REIT with growing dividends
+
+# UK STOCKS
+BP,BP plc - UK-based oil and gas company with high dividend yield
+SHEL,Shell plc - UK-based energy company with strong dividend history
+HSBA.L,HSBC Holdings - UK-based global bank with high dividend yield
+LLOY.L,Lloyds Banking Group - UK bank with consistent dividend payments
+BARC.L,Barclays - UK banking group with dividend focus
+STAN.L,Standard Chartered - UK-based international bank with growing dividends
+LGEN.L,Legal & General Group - UK financial services with high dividend yield
+AV.L,Aviva - UK insurance company with strong dividend history
+ULVR.L,Unilever - UK-based consumer goods company with consistent dividends
+BATS.L,British American Tobacco - UK tobacco company with high dividend yield
+IMB.L,Imperial Brands - UK tobacco company with one of the highest dividend yields in FTSE 100
+GLEN.L,Glencore - UK-based commodity trading and mining company with high dividend yield
+BT.L,BT Group - UK telecommunications company with high dividend yield
+VOD.L,Vodafone Group - UK-based global telecommunications with high dividend yield
+SSE.L,SSE plc - UK energy company with focus on renewable energy and high dividend yield
+NG.L,National Grid - UK utility company with consistent high dividends
+UU.L,United Utilities - UK water and wastewater company with strong dividend history
+SVT.L,Severn Trent - UK water utility company with consistent dividend payments
+GSK.L,GSK plc - UK-based pharmaceutical company with strong dividend history
+AZN.L,AstraZeneca - UK-based pharmaceutical company with growing dividends
+RIO.L,Rio Tinto - UK-based mining company with high dividend yield
+AAL.L,Anglo American - UK mining company with strong dividend payments
+BHP.L,BHP Group - UK-listed mining company with consistent dividends
+BME.L,B&M European Value Retail - UK-based discount retailer with growing dividend history
+
+# US STOCKS WITH CHINA EXPOSURE
 AAPL,Apple Inc. - Significant manufacturing in China large European market
-MSFT,Microsoft Corporation - Global cloud and software services
-AMZN,Amazon.com Inc. - Global e-commerce and cloud services
-GOOGL,Alphabet Inc. - Global digital advertising and services
-META,Meta Platforms Inc. - Global social media platforms
+MSFT,Microsoft Corporation - Global cloud and software services with China exposure
+AMZN,Amazon.com Inc. - Global e-commerce and cloud services with China supply chain
+GOOGL,Alphabet Inc. - Global digital advertising and services with limited China operations
+META,Meta Platforms Inc. - Global social media platforms with limited China operations
 TSLA,Tesla Inc. - Manufacturing in China sales in Europe and Asia
 NVDA,NVIDIA Corporation - 39% revenue exposure to Greater China region semiconductor manufacturing
 QCOM,Qualcomm Inc. - Mobile chip technology with global supply chains high China exposure
-INTC,Intel Corporation - Semiconductor manufacturing and global sales
-AMD,Advanced Micro Devices - Semiconductor manufacturing and global sales
-MU,Micron Technology - Memory chip manufacturing and global sales
-TXN,Texas Instruments - Semiconductor manufacturing and global sales
-TSM,Taiwan Semiconductor Manufacturing - World's largest semiconductor foundry with global exposure
-AMAT,Applied Materials - Semiconductor manufacturing equipment with global supply chains
-KLAC,KLA Corporation - Semiconductor process control equipment with significant Asia exposure
-LRCX,Lam Research - Semiconductor equipment manufacturing with global exposure
-CAT,Caterpillar Inc. - Heavy machinery exports globally
-DE,Deere & Company - Agricultural equipment exports
-BA,Boeing Co. - Aircraft exports vulnerable to retaliatory tariffs
-LMT,Lockheed Martin Corporation - Defense exports
-RTX,Raytheon Technologies - Aerospace and defense exports
-F,Ford Motor Company - Global auto manufacturing and sales
-GM,General Motors Company - Global auto manufacturing and sales
-IBM,International Business Machines - Global IT services
-HPQ,HP Inc. - Global computer hardware manufacturing
-DELL,Dell Technologies - Global computer hardware manufacturing
-NKE,Nike Inc. - Manufacturing in Asia global sales
+AMD,Advanced Micro Devices - Semiconductor manufacturing with significant China exposure
+MU,Micron Technology - Memory chip manufacturing with heavy China exposure
+TXN,Texas Instruments - Semiconductor manufacturing with China exposure
+AMAT,Applied Materials - Semiconductor manufacturing equipment with significant China exposure
+KLAC,KLA Corporation - Semiconductor process control equipment with significant China exposure
+LRCX,Lam Research - Semiconductor equipment manufacturing with China exposure
 SBUX,Starbucks Corporation - Significant presence in China
-MCD,McDonald's Corporation - Global restaurant chain
-KO,Coca-Cola Company - Global beverage sales
-PEP,PepsiCo Inc. - Global food and beverage sales
-PG,Procter & Gamble - Consumer goods with global manufacturing
-JNJ,Johnson & Johnson - Global pharmaceutical and consumer health
-PFE,Pfizer Inc. - Global pharmaceutical sales
-MRK,Merck & Co. - Global pharmaceutical sales
-ABT,Abbott Laboratories - Global healthcare products
-MMM,3M Company - Industrial and consumer products globally
-HON,Honeywell International - Industrial conglomerate with global exposure
-GE,General Electric - Industrial conglomerate with global exposure
-XOM,Exxon Mobil Corporation - Global energy operations
-CVX,Chevron Corporation - Global energy operations
-WMT,Walmart Inc. - Global retail with significant imports
-TGT,Target Corporation - Retail with significant imports
-HD,Home Depot Inc. - Retail with significant imports
-COST,Costco Wholesale - Retail with significant imports
-LVS,Las Vegas Sands - 63% revenue exposure to Greater China region (Macao operations)
-WYNN,Wynn Resorts - 47% revenue exposure to Greater China region (Macao operations)
-AVGO,Broadcom Inc. - Semiconductor solutions with global supply chains
-ADBE,Adobe Inc. - Global software and digital media solutions
-CRM,Salesforce Inc. - Global cloud-based CRM solutions
-PYPL,PayPal Holdings - Global digital payment platform
-MRVL,Marvell Technology - Semiconductor solutions with global supply chains and data center focus
+AVGO,Broadcom Inc. - Semiconductor solutions with significant China exposure
+ADBE,Adobe Inc. - Global software and digital media solutions with China market
+CRM,Salesforce Inc. - Global cloud-based CRM solutions with China operations
+PYPL,PayPal Holdings - Global digital payment platform with China exposure
+MRVL,Marvell Technology - Semiconductor solutions with significant China exposure
 
+# US STOCKS WITH VIETNAM EXPOSURE
+NKE,Nike Inc. - Significant manufacturing presence in Vietnam
+CROX,Crocs Inc. - Footwear manufacturer with production in Vietnam
+DECK,Deckers Outdoor Corporation - Footwear with Vietnamese manufacturing
+SKX,Skechers U.S.A. Inc. - Footwear with significant Vietnamese production
+COLM,Columbia Sportswear Company - Apparel with Vietnamese manufacturing
+TPR,Tapestry Inc. - Luxury goods with Vietnamese production facilities
+VFC,VF Corporation - Apparel with significant Vietnamese manufacturing
 
-# European companies with US exposure
+# US STOCKS WITH JAPAN EXPOSURE
+TM,Toyota Motor Corporation - Japanese automaker with significant US presence
+SONY,Sony Group Corporation - Japanese electronics and entertainment conglomerate
+HMC,Honda Motor Co. - Japanese automaker with US manufacturing
+HTHIY,Hitachi Ltd. - Japanese industrial conglomerate with global operations
+CAJ,Canon Inc. - Japanese imaging and optical products manufacturer
+KYOCY,Kyocera Corporation - Japanese electronics and ceramics manufacturer
+MSBHF,Mitsubishi Corporation - Japanese trading and investment company
+MUFG,Mitsubishi UFJ Financial Group - Japanese banking and financial services
+MTU,Mizuho Financial Group - Japanese banking and financial services
+SMFG,Sumitomo Mitsui Financial Group - Japanese banking and financial services
+
+# EUROPEAN STOCKS WITH US EXPOSURE
 ASML,ASML Holding - Semiconductor equipment manufacturing
 SAP,SAP SE - Enterprise software
 SIEGY,Siemens AG - Industrial manufacturing
@@ -63,47 +140,55 @@ NSRGY,Nestlé S.A. - Food and beverage
 VWAGY,Volkswagen AG - Automotive
 BMWYY,BMW AG - Automotive
 DMLRY,Mercedes-Benz Group AG - Automotive
-SHECY,Schneider Electric SE - Energy management and automation
+SU,Schneider Electric SE - Energy management and automation
 RHHBY,Roche Holding AG - Global pharmaceutical company
-AZN,AstraZeneca PLC - Global pharmaceutical company
 
-# Chinese companies with US exposure
-BABA,Alibaba Group Holding - E-commerce
-JD,JD.com Inc. - E-commerce
-PDD,PDD Holdings Inc. - E-commerce
-NIO,NIO Inc. - Electric vehicles
-LI,Li Auto Inc. - Electric vehicles
-XPEV,XPeng Inc. - Electric vehicles
-BIDU,Baidu Inc. - Internet search and AI technology
+# US STOCKS WITH GLOBAL SUPPLY CHAINS
+F,Ford Motor Company - Global auto manufacturing and sales
+GM,General Motors Company - Global auto manufacturing and sales
+HPQ,HP Inc. - Global computer hardware manufacturing
+DELL,Dell Technologies - Global computer hardware manufacturing
+ABT,Abbott Laboratories - Global healthcare products
+MMM,3M Company - Industrial and consumer products globally
+HON,Honeywell International - Industrial conglomerate with global exposure
+GE,General Electric - Industrial conglomerate with global exposure
+WMT,Walmart Inc. - Global retail with significant imports
+TGT,Target Corporation - Retail with significant imports
+COST,Costco Wholesale - Retail with significant imports
+DE,Deere & Company - Agricultural equipment exports
+BA,Boeing Co. - Aircraft exports vulnerable to retaliatory tariffs
+LMT,Lockheed Martin Corporation - Defense exports
+RTX,Raytheon Technologies - Aerospace and defense exports
 
-# Defensive sectors that may benefit during trade tensions
-GLD,SPDR Gold Shares - Gold ETF
-SLV,iShares Silver Trust - Silver ETF
-PDBC,Invesco Optimum Yield Diversified Commodity Strategy - Commodities ETF
-VPU,Vanguard Utilities ETF - Utilities sector
-XLP,Consumer Staples Select Sector SPDR Fund - Consumer staples
-XLU,Utilities Select Sector SPDR Fund - Utilities sector
-XLRE,Real Estate Select Sector SPDR Fund - Real estate
-XLV,Health Care Select Sector SPDR Fund - Healthcare sector
-VNQ,Vanguard Real Estate ETF - Real estate investment trusts
 
-# Broad market ETFs for diversification
-SPY,SPDR S&P 500 ETF Trust - Tracks the S&P 500 index
-QQQ,Invesco QQQ Trust - Tracks the Nasdaq-100 index
-IWM,iShares Russell 2000 ETF - Small-cap US stocks
-VEA,Vanguard FTSE Developed Markets ETF - Developed markets ex-US
-VWO,Vanguard FTSE Emerging Markets ETF - Emerging markets
-AGG,iShares Core U.S. Aggregate Bond ETF - US investment-grade bonds
-TLT,iShares 20+ Year Treasury Bond ETF - Long-term US Treasury bonds
-BND,Vanguard Total Bond Market ETF - Broad US bond market exposure
+# MAJOR EXPORT-ORIENTED COMPANIES FROM SURPLUS ECONOMIES
+# Germany
+VWAGY,Volkswagen Group - German automaker with significant export exposure
+DMLRY,Daimler AG - German automotive manufacturer with global exports
+BMWYY,BMW Group - German luxury vehicle exporter
+SIEGY,Siemens AG - German industrial manufacturing exporter
 
-# Inflation hedges and alternative investments
-TIP,iShares TIPS Bond ETF - Treasury Inflation-Protected Securities
-VTIP,Vanguard Short-Term Inflation-Protected Securities ETF - Short-term TIPS
-SCHP,Schwab U.S. TIPS ETF - Treasury Inflation-Protected Securities
-IAU,iShares Gold Trust - Gold ETF alternative
-SGOL,Aberdeen Standard Physical Gold Shares ETF - Gold backed ETF
-PSLV,Sprott Physical Silver Trust - Physical silver backed fund
-PPLT,Aberdeen Standard Physical Platinum Shares ETF - Platinum ETF
-PALL,Aberdeen Standard Physical Palladium Shares ETF - Palladium ETF
-DBC,Invesco DB Commodity Index Tracking Fund - Broad commodities exposure
+# China
+BYDDF,BYD Co. Ltd. - Chinese electric vehicle and battery manufacturer
+SAIC,SAIC Motor Corporation - Major Chinese automotive exporter
+SNP,Sinopec (China Petroleum & Chemical Corporation) - Chinese petroleum exporter
+GREE,Gree Electric Appliances Inc. - Chinese appliance manufacturer and exporter
+ACH,Aluminum Corporation of China (Chalco) - Chinese aluminum producer and exporter
+
+# Japan
+TM,Toyota Motor Corporation - Japanese automotive giant with global exports
+SONY,Sony Group Corporation - Japanese electronics and entertainment exporter
+CAJ,Canon Inc. - Japanese imaging and optical products manufacturer
+NPSCY,Nippon Steel Corporation - Japanese steel producer with global exports
+
+# South Korea
+SSNLF,Samsung Electronics Co. Ltd. - South Korean electronics conglomerate
+HYMTF,Hyundai Motor Company - South Korean automotive manufacturer
+HXSCF,SK Hynix Inc. - South Korean semiconductor manufacturer
+LGEIY,LG Electronics Inc. - South Korean consumer electronics manufacturer
+
+# Taiwan
+TSM,Taiwan Semiconductor Manufacturing Company (TSMC) - World's largest semiconductor foundry
+HNHPF,Hon Hai Precision Industry Co. Ltd. (Foxconn) - Taiwanese electronics manufacturer
+MDTKF,MediaTek Inc. - Taiwanese semiconductor company
+PGTRF,Pegatron Corporation - Taiwanese electronics manufacturer
