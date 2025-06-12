@@ -145,6 +145,9 @@ class FearGreedChartManager:
 
             debug(f"Created dataframe with {len(df)} rows of fear and greed data")
 
+            # Ensure date column is properly formatted as datetime
+            df["date"] = pd.to_datetime(df["date"])
+
             # Remove duplicate dates by keeping the last value for each date
             # This prevents the "cannot reindex on an axis with duplicate labels" error
             df = df.drop_duplicates(subset=["date"], keep="last")
@@ -163,6 +166,8 @@ class FearGreedChartManager:
                     .reset_index()
                 )
                 df = df.rename(columns={"index": "date"})
+                # Ensure the date column is still datetime after reset_index
+                df["date"] = pd.to_datetime(df["date"])
 
             # Limit to the requested number of days
             return df.tail(days)
@@ -196,11 +201,15 @@ class FearGreedChartManager:
             fig.patch.set_facecolor("#1E1E28")
             ax.set_facecolor("#1E1E28")
 
+            # Convert dates to matplotlib-compatible format and set as index for proper plotting
+            df_plot = df.copy()
+            df_plot = df_plot.set_index("date")
+
             # Plot the Fear & Greed line with segments colored by value
             # INVERTED COLOR SCHEME: Green for fear, Red for greed
-            for i in range(len(df) - 1):
+            for i in range(len(df_plot) - 1):
                 # Extract as a float to ensure it's a scalar
-                value = float(df["value"].iloc[i])
+                value = float(df_plot["value"].iloc[i])
 
                 # Determine segment color based on value range (INVERTED)
                 if value < 25:  # Extreme Fear
@@ -214,10 +223,10 @@ class FearGreedChartManager:
                 else:  # Extreme Greed
                     color = "#F44336"  # Red
 
-                # Plot this segment with the appropriate color
+                # Plot this segment with the appropriate color using index (dates)
                 ax.plot(
-                    df.iloc[i : i + 2]["date"],
-                    df.iloc[i : i + 2]["value"],
+                    df_plot.index[i : i + 2],
+                    df_plot["value"].iloc[i : i + 2],
                     color=color,
                     linewidth=2.5,
                     solid_capstyle="round",
@@ -273,7 +282,7 @@ class FearGreedChartManager:
 
             # Add marker point for current value
             ax.plot(
-                df.iloc[-1]["date"],
+                df_plot.index[-1],
                 current_value,
                 "o",
                 color=current_color,
@@ -285,7 +294,7 @@ class FearGreedChartManager:
             # Format x-axis (dates)
             ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
             ax.xaxis.set_major_locator(mdates.YearLocator())
-            ax.tick_params(axis="x", colors="white", labelsize=7, rotation=45)
+            ax.tick_params(axis="x", colors="white", labelsize=7)
             ax.tick_params(axis="y", colors="white", labelsize=7)
 
             # Add grid

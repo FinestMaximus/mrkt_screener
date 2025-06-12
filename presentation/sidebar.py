@@ -1,15 +1,10 @@
 import streamlit as st
 import pandas as pd
-from data.fear_greed_indicator import FearGreedIndicator
-from utils.logger import info, debug, warning, error
+from utils.logger import info, debug, error
 from presentation.vix_chart import VIXChartManager
 from presentation.pe_chart import PERatioChartManager
 from presentation.fear_greed_chart import FearGreedChartManager
-from presentation.styles import (
-    apply_sidebar_styling,
-    style_metric_compact,
-    style_metric_value_with_note,
-)
+from presentation.styles import apply_sidebar_styling
 
 
 class SidebarManager:

@@ -14,19 +14,23 @@ class PERatioChartManager:
         """Initialize the PE ratio chart manager"""
         info("Initializing PERatioChartManager")
 
-    def fetch_pe_data(self, years=5):
-        """Fetch S&P 500 PE ratio data for the specified number of years
+    def fetch_pe_data(self, days=2555):
+        """Fetch S&P 500 PE ratio data for the specified number of days
 
         Args:
-            years: Number of years of PE data to fetch (default: 5)
+            days: Number of days of PE data to fetch (default: 2555, ~7 years)
 
         Returns:
             DataFrame containing PE ratio data or None if fetch failed
         """
         try:
-            info(f"Fetching S&P 500 PE ratio data for the last {years} years")
+            # Convert days to years for display purposes
+            years = days / 365
+            info(
+                f"Fetching S&P 500 PE ratio data for the last {days} days ({years:.1f} years)"
+            )
             end_date = datetime.now()
-            start_date = end_date - timedelta(days=365 * years)
+            start_date = end_date - timedelta(days=days)
 
             # Retry logic for rate limiting
             max_retries = 3
@@ -113,13 +117,13 @@ class PERatioChartManager:
             error(f"Error fetching PE ratio data: {str(e)}")
             return None
 
-    def display_pe_chart(self, years=5):
+    def display_pe_chart(self, days=2555):
         """Display S&P 500 PE ratio chart
 
         Args:
-            years: Number of years of PE ratio data to show (default: 5)
+            days: Number of days of PE ratio data to show (default: 2555, ~7 years)
         """
-        pe_data = self.fetch_pe_data(years)
+        pe_data = self.fetch_pe_data(days)
 
         if pe_data is None or pe_data.empty:
             st.warning("S&P 500 PE ratio data currently unavailable")
@@ -157,17 +161,18 @@ class PERatioChartManager:
         )
 
         # Format dates on x-axis
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y-%m"))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
         ax.xaxis.set_major_locator(mdates.YearLocator())
-        ax.tick_params(axis="x", colors="white", labelsize=8, rotation=45)
+        ax.tick_params(axis="x", colors="white", labelsize=8)
         ax.tick_params(axis="y", colors="white", labelsize=8)
 
         # Add grid for better readability
         ax.grid(axis="y", linestyle="--", alpha=0.3, color="#555555")
 
         # Add title and labels
+        years_desc = f"{days/365:.1f} Year{'s' if days/365 > 1 else ''}"
         ax.set_title(
-            f"S&P 500 PE Ratio - Last {years} Years (Current: {current_pe:.2f})",
+            f"S&P 500 PE Ratio - Last {years_desc} (Current: {current_pe:.2f})",
             color="white",
             fontsize=10,
         )
@@ -369,9 +374,7 @@ class PERatioChartManager:
     # Add a compact version of the PE history chart for sidebar
     def display_pe_chart_compact(self, days=2555):  # Default to ~7 years
         """Display a compact PE ratio chart in the sidebar with dynamic coloring"""
-        # Convert days to years for fetch_pe_data which expects years
-        years = max(1, days / 365)  # Ensure at least 1 year
-        pe_data = self.fetch_pe_data(years)
+        pe_data = self.fetch_pe_data(days)
 
         if pe_data is None or pe_data.empty:
             st.warning("P/E ratio data currently unavailable")
@@ -379,6 +382,7 @@ class PERatioChartManager:
 
         # Create a user-friendly time period description
         if days >= 365:
+            years = days / 365
             time_desc = f"{years:.1f} Year{'s' if years > 1 else ''}"
         else:
             time_desc = f"{days} Day{'s' if days > 1 else ''}"
@@ -464,7 +468,8 @@ class PERatioChartManager:
         )
 
         # Format date axis
-        ax.xaxis.set_major_formatter(mdates.DateFormatter("%Y"))
+        ax.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
+        ax.xaxis.set_major_locator(mdates.YearLocator())
         ax.tick_params(axis="x", colors="white", labelsize=7)
         ax.tick_params(axis="y", colors="white", labelsize=7)
 

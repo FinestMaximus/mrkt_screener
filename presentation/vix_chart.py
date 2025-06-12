@@ -65,11 +65,11 @@ class VIXChartManager:
             error(f"Unhandled error fetching VIX data: {str(e)}")
             return None
 
-    def display_vix_chart(self, days=30):
+    def display_vix_chart(self, days=2555):
         """Display VIX chart in the sidebar
 
         Args:
-            days: Number of days of VIX data to show (default: 30)
+            days: Number of days of VIX data to show (default: 2555, ~7 years)
         """
         vix_data = self.fetch_vix_data(days)
 
