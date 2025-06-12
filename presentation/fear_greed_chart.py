@@ -145,6 +145,11 @@ class FearGreedChartManager:
 
             debug(f"Created dataframe with {len(df)} rows of fear and greed data")
 
+            # Remove duplicate dates by keeping the last value for each date
+            # This prevents the "cannot reindex on an axis with duplicate labels" error
+            df = df.drop_duplicates(subset=["date"], keep="last")
+            debug(f"After removing duplicates: {len(df)} rows of fear and greed data")
+
             # Fill in missing days with linear interpolation if we have enough points
             if len(df) >= 2:
                 full_date_range = pd.date_range(
@@ -153,6 +158,7 @@ class FearGreedChartManager:
                 df = (
                     df.set_index("date")
                     .reindex(full_date_range)
+                    .infer_objects(copy=False)
                     .interpolate(method="linear")
                     .reset_index()
                 )

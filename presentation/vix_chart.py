@@ -15,7 +15,7 @@ class VIXChartManager:
         info("Initializing VIXChartManager")
 
     def fetch_vix_data(self, days=2555):  # ~7 years (365*7)
-        """Fetch VIX data for the specified number of days
+        """Fetch VIX data for the specified number of days with retry logic
 
         Args:
             days: Number of days of VIX data to fetch (default: 2555, ~7 years)
@@ -23,27 +23,46 @@ class VIXChartManager:
         Returns:
             DataFrame containing VIX data or None if fetch failed
         """
+        import time
+
         try:
             info(f"Fetching VIX data for the last {days} days")
             end_date = datetime.now()
             start_date = end_date - timedelta(days=days)
 
-            # Fetch VIX data using yfinance
-            vix_data = yf.download(
-                "^VIX",
-                start=start_date.strftime("%Y-%m-%d"),
-                end=end_date.strftime("%Y-%m-%d"),
-                progress=False,
-            )
+            # Retry logic for rate limiting
+            max_retries = 5  # Increased retries
+            retry_delay = 10  # Increased initial delay
 
-            if vix_data.empty:
-                warning("No VIX data retrieved")
-                return None
+            for attempt in range(max_retries):
+                try:
+                    # Fetch VIX data using yfinance
+                    vix_data = yf.download(
+                        "^VIX",
+                        start=start_date.strftime("%Y-%m-%d"),
+                        end=end_date.strftime("%Y-%m-%d"),
+                        progress=False,
+                    )
 
-            debug(f"Retrieved {len(vix_data)} VIX data points")
-            return vix_data
+                    if vix_data.empty:
+                        warning("No VIX data retrieved, attempt {attempt + 1}")
+                        time.sleep(retry_delay)
+                        continue  # Continue retrying if data is empty
+
+                    debug(f"Retrieved {len(vix_data)} VIX data points")
+                    return vix_data
+
+                except Exception as e:
+                    warning(f"Attempt {attempt + 1}: {str(e)}")
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                        retry_delay *= 2  # Exponential backoff
+                    else:
+                        error(f"Failed to fetch VIX data after {max_retries} attempts")
+                        return None
+
         except Exception as e:
-            error(f"Error fetching VIX data: {str(e)}")
+            error(f"Unhandled error fetching VIX data: {str(e)}")
             return None
 
     def display_vix_chart(self, days=30):

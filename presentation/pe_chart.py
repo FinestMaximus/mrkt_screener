@@ -28,17 +28,48 @@ class PERatioChartManager:
             end_date = datetime.now()
             start_date = end_date - timedelta(days=365 * years)
 
-            # Fetch S&P 500 data using yfinance
-            sp500_data = yf.download(
-                "^GSPC",
-                start=start_date.strftime("%Y-%m-%d"),
-                end=end_date.strftime("%Y-%m-%d"),
-                progress=False,
-            )
+            # Retry logic for rate limiting
+            max_retries = 3
+            retry_delay = 5  # seconds
 
-            if sp500_data.empty:
-                warning("No S&P 500 data retrieved")
-                return None
+            for attempt in range(max_retries):
+                try:
+                    # Fetch S&P 500 data using yfinance
+                    sp500_data = yf.download(
+                        "^GSPC",
+                        start=start_date.strftime("%Y-%m-%d"),
+                        end=end_date.strftime("%Y-%m-%d"),
+                        progress=False,
+                    )
+
+                    if sp500_data.empty:
+                        warning("No S&P 500 data retrieved")
+                        return None
+
+                    # Break out of retry loop on success
+                    break
+
+                except Exception as e:
+                    if (
+                        "rate limit" in str(e).lower()
+                        or "too many requests" in str(e).lower()
+                    ):
+                        if attempt < max_retries - 1:
+                            warning(
+                                f"Rate limited on attempt {attempt + 1}/{max_retries}. Retrying in {retry_delay} seconds..."
+                            )
+                            import time
+
+                            time.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                            continue
+                        else:
+                            error(
+                                f"Failed to fetch S&P 500 data after {max_retries} attempts due to rate limiting"
+                            )
+                            return None
+                    else:
+                        raise e
 
             # For actual implementation, we need to get PE ratio data
             # This example uses approximation with mock data since yfinance
@@ -197,35 +228,92 @@ class PERatioChartManager:
         )
 
     def fetch_sp500_pe(self):
-        """Fetch the current S&P 500 P/E ratio with multiple fallback methods
+        """Fetch the current S&P 500 P/E ratio with multiple fallback methods and retry logic
 
         Returns:
             tuple: (current_pe, historical_avg_pe) or (None, None) if fetch failed
         """
+        import time
+
         try:
             info("Fetching S&P 500 P/E ratio data")
             # Historical average P/E is approximately 16-17
             historical_avg_pe = 16.5
 
+            # Retry logic for rate limiting
+            max_retries = 3
+            retry_delay = 5  # seconds
+
             # Method 1: Direct from S&P 500 index
-            sp500 = yf.Ticker("^GSPC")
-            if hasattr(sp500, "info") and sp500.info is not None:
-                # Try with direct fields from index info
-                pe_fields = ["trailingPE", "forwardPE"]
-                for field in pe_fields:
-                    if field in sp500.info and sp500.info[field] is not None:
-                        current_pe = sp500.info[field]
-                        debug(f"Retrieved S&P 500 P/E ratio from {field}: {current_pe}")
-                        return float(current_pe), historical_avg_pe
+            for attempt in range(max_retries):
+                try:
+                    sp500 = yf.Ticker("^GSPC")
+                    if hasattr(sp500, "info") and sp500.info is not None:
+                        # Try with direct fields from index info
+                        pe_fields = ["trailingPE", "forwardPE"]
+                        for field in pe_fields:
+                            if field in sp500.info and sp500.info[field] is not None:
+                                current_pe = sp500.info[field]
+                                debug(
+                                    f"Retrieved S&P 500 P/E ratio from {field}: {current_pe}"
+                                )
+                                return float(current_pe), historical_avg_pe
+                    break  # If we get here, no PE data found but no error
+                except Exception as e:
+                    if (
+                        "rate limit" in str(e).lower()
+                        or "too many requests" in str(e).lower()
+                    ):
+                        if attempt < max_retries - 1:
+                            warning(
+                                f"Rate limited fetching S&P 500 data on attempt {attempt + 1}/{max_retries}. Retrying in {retry_delay} seconds..."
+                            )
+                            time.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                            continue
+                        else:
+                            warning(
+                                f"Failed to fetch S&P 500 data after {max_retries} attempts due to rate limiting"
+                            )
+                            break
+                    else:
+                        warning(f"Error fetching S&P 500 data: {str(e)}")
+                        break
 
             # Method 2: Calculate from S&P ETF (SPY)
             debug("Trying to get P/E ratio from SPY ETF")
-            spy = yf.Ticker("SPY")
-            if hasattr(spy, "info") and spy.info is not None:
-                if "trailingPE" in spy.info and spy.info["trailingPE"] is not None:
-                    current_pe = spy.info["trailingPE"]
-                    debug(f"Retrieved P/E ratio from SPY ETF: {current_pe}")
-                    return float(current_pe), historical_avg_pe
+            for attempt in range(max_retries):
+                try:
+                    spy = yf.Ticker("SPY")
+                    if hasattr(spy, "info") and spy.info is not None:
+                        if (
+                            "trailingPE" in spy.info
+                            and spy.info["trailingPE"] is not None
+                        ):
+                            current_pe = spy.info["trailingPE"]
+                            debug(f"Retrieved P/E ratio from SPY ETF: {current_pe}")
+                            return float(current_pe), historical_avg_pe
+                    break  # If we get here, no PE data found but no error
+                except Exception as e:
+                    if (
+                        "rate limit" in str(e).lower()
+                        or "too many requests" in str(e).lower()
+                    ):
+                        if attempt < max_retries - 1:
+                            warning(
+                                f"Rate limited fetching SPY data on attempt {attempt + 1}/{max_retries}. Retrying in {retry_delay} seconds..."
+                            )
+                            time.sleep(retry_delay)
+                            retry_delay *= 2  # Exponential backoff
+                            continue
+                        else:
+                            warning(
+                                f"Failed to fetch SPY data after {max_retries} attempts due to rate limiting"
+                            )
+                            break
+                    else:
+                        warning(f"Error fetching SPY data: {str(e)}")
+                        break
 
             # Method 3: Fallback to a recent known value (as of your request - example value)
             # In practice, this would be updated regularly or fetched from an API
